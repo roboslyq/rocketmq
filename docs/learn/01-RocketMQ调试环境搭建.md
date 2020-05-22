@@ -2,17 +2,17 @@
 
 ## 前提
 
-> JDK
+> JDK 1.8或者之上
 >
 > IDEA
 >
-> Maven
+> Maven 3+
 >
 > Git
 
 ## Fork
 
-> 先不管，官网github fork一份代码到自己的空间： https://github.com/apache/rocketmq 
+> 为了学习源码方便自己做笔记，我们需要自己的一个仓库，因此我们第一件要做的事情就是从官网github fork一份代码到自己的空间。RocketMQ git官网地址; https://github.com/apache/rocketmq 
 
 ## Clone
 
@@ -30,6 +30,8 @@
 
 > 配置ROCKETMQ_HOME,当然可以直接配置在计算的环境变量里,我这里直接配置在IDEA中。注意，当前版本必须指定到源码包解压后的`distribution`这个目录 ，因为这个目录有一个`conf`文件夹，保存了启动需要的默认配置。
 
+`ROCKETMQ_HOME=E:\workspace\github\rocketmq\distribution`
+
 ![2](./images/01/2.jpg)
 
 ### 启动
@@ -43,6 +45,10 @@
 ### 配置环境变量
 
 > 与`namesrv`配置一致,但多了一个Program arguments参数: `-n 127.0.0.1:9786`。指定了`namesrv`服务器的地址和端口。
+
+`-n 127.0.0.1:9876`
+
+`ROCKETMQ_HOME=E:\workspace\github\rocketmq\distribution`
 
 ![4](./images/01/4.jpg)
 
