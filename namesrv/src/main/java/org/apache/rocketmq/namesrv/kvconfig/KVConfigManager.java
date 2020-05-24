@@ -41,6 +41,9 @@ public class KVConfigManager {
         this.namesrvController = namesrvController;
     }
 
+    /**
+     *     kvConfigManager加载，将上次保存的内容重新加载到当前的内存中
+     */
     public void load() {
         String content = null;
         try {

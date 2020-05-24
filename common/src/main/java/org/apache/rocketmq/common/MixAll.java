@@ -324,6 +324,12 @@ public class MixAll {
         return properties;
     }
 
+    /**
+     * 利用反射机制，将p中的kv，设置到对应的Object中。
+     * 比如namesrv启动时，object可以为NamesrvConfig，NettyServerConfig
+     * @param p
+     * @param object
+     */
     public static void properties2Object(final Properties p, final Object object) {
         Method[] methods = object.getClass().getMethods();
         for (Method method : methods) {

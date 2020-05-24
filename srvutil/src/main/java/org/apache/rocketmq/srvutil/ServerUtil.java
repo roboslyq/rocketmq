@@ -25,7 +25,11 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
 public class ServerUtil {
-
+    /**
+     * Nameserv启动时，进行命令行初始化，详情见"org.apache.rocketmq.namesrv.NamesrvStartup"
+     * @param options
+     * @return
+     */
     public static Options buildCommandlineOptions(final Options options) {
         Option opt = new Option("h", "help", false, "Print help");
         opt.setRequired(false);
@@ -47,6 +51,7 @@ public class ServerUtil {
         CommandLine commandLine = null;
         try {
             commandLine = parser.parse(options, args);
+            //如果有“h”参数，表明用户只需要帮助，因此打印help信息后，直接退出。
             if (commandLine.hasOption('h')) {
                 hf.printHelp(appName, options, true);
                 System.exit(0);

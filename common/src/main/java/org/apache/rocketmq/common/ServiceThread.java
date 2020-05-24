@@ -42,6 +42,9 @@ public abstract class ServiceThread implements Runnable {
 
     public abstract String getServiceName();
 
+    /**
+     * 启动从消息服务器上拉取消息
+     */
     public void start() {
         log.info("Try to start service thread:{} started:{} lastThread:{}", getServiceName(), started.get(), thread);
         if (!started.compareAndSet(false, true)) {

@@ -46,6 +46,7 @@ import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 
 /**
  * Store all metadata downtime for recovery, data protection reliability
+ * 存储所有元数据停机时间以实现恢复、数据保护可靠性
  */
 public class CommitLog {
     // Message's MAGIC CODE daa320a7
@@ -776,6 +777,11 @@ public class CommitLog {
 
     }
 
+    /**
+     * CommitLog存储消息
+     * @param msg
+     * @return
+     */
     public PutMessageResult putMessage(final MessageExtBrokerInner msg) {
         // Set the storage time
         msg.setStoreTimestamp(System.currentTimeMillis());
@@ -844,14 +850,15 @@ public class CommitLog {
                 beginTimeInLock = 0;
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
             }
-
+            // mappedFile写文件：将消息写入到文件中
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
             switch (result.getStatus()) {
-                case PUT_OK:
+                case PUT_OK://写成功，不做处理
                     break;
-                case END_OF_FILE:
+                case END_OF_FILE://写失败，到达文件末尾(最大限制)，创建一个新文件
                     unlockMappedFile = mappedFile;
                     // Create a new file, re-write the message
+                    // 创建一个新文件，然后重新写
                     mappedFile = this.mappedFileQueue.getLastMappedFile(0);
                     if (null == mappedFile) {
                         // XXX: warn and notify me
@@ -859,6 +866,7 @@ public class CommitLog {
                         beginTimeInLock = 0;
                         return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, result);
                     }
+                    //写新文件
                     result = mappedFile.appendMessage(msg, this.appendMessageCallback);
                     break;
                 case MESSAGE_SIZE_EXCEEDED:
@@ -892,8 +900,13 @@ public class CommitLog {
         // Statistics
         storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
         storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
-
+        /**
+         * 将缓存中的信息刷入到磁盘中
+         */
         handleDiskFlush(result, putMessageResult, msg);
+        /**
+         * 控制主从复制
+         */
         handleHA(result, putMessageResult, msg);
 
         return putMessageResult;
@@ -945,9 +958,15 @@ public class CommitLog {
         return CompletableFuture.completedFuture(PutMessageStatus.PUT_OK);
     }
 
-
+    /**
+     * 将缓存中的内容刷新到磁盘中
+     * @param result
+     * @param putMessageResult
+     * @param messageExt
+     */
     public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
         // Synchronization flush
+        // 同步刷新(消耗性能,默认是关闭的，开启的是异步刷新)
         if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK()) {
@@ -971,6 +990,7 @@ public class CommitLog {
             }
         }
         // Asynchronous flush
+        // 异步刷新(推荐使用)
         else {
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
@@ -1152,11 +1172,19 @@ public class CommitLog {
         return -1;
     }
 
+    /**
+     * 拉取消息:根据偏移位置和长度，获得指定的内容
+     * @param offset
+     * @param size
+     * @return
+     */
     public SelectMappedBufferResult getMessage(final long offset, final int size) {
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+        //根据位置通过commitlog找到对应的数据
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, offset == 0);
         if (mappedFile != null) {
             int pos = (int) (offset % mappedFileSize);
+            //读数据的实现
             return mappedFile.selectMappedBuffer(pos, size);
         }
         return null;
@@ -1240,6 +1268,7 @@ public class CommitLog {
 
         @Override
         public void run() {
+            //刷到磁盘
             CommitLog.log.info(this.getServiceName() + " service started");
             while (!this.isStopped()) {
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitIntervalCommitLog();
@@ -1495,6 +1524,9 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 内部类，默认实现的文件存储
+     */
     class DefaultAppendMessageCallback implements AppendMessageCallback {
         // File at the end of the minimum fixed length empty
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
@@ -1520,6 +1552,14 @@ public class CommitLog {
             return msgStoreItemMemory;
         }
 
+        /**
+         * 追加消息到文件中
+         * @param fileFromOffset
+         * @param byteBuffer
+         * @param maxBlank
+         * @param msgInner
+         * @return
+         */
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
             final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
@@ -1610,7 +1650,9 @@ public class CommitLog {
                 return new AppendMessageResult(AppendMessageStatus.END_OF_FILE, wroteOffset, maxBlank, msgId, msgInner.getStoreTimestamp(),
                     queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
             }
-
+            /**
+             * 消息存储具体格式
+             */
             // Initialization of storage space
             this.resetByteBuffer(msgStoreItemMemory, msgLen);
             // 1 TOTALSIZE
@@ -1657,6 +1699,7 @@ public class CommitLog {
 
             final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
             // Write messages to the queue buffer
+            // 写消息到缓存Queue中
             byteBuffer.put(this.msgStoreItemMemory.array(), 0, msgLen);
 
             AppendMessageResult result = new AppendMessageResult(AppendMessageStatus.PUT_OK, wroteOffset, msgLen, msgId,

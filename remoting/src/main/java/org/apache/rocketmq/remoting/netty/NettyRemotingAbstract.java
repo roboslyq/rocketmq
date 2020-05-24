@@ -154,10 +154,10 @@ public abstract class NettyRemotingAbstract {
         final RemotingCommand cmd = msg;
         if (cmd != null) {
             switch (cmd.getType()) {
-                case REQUEST_COMMAND:
+                case REQUEST_COMMAND: //处理请求类的操作
                     processRequestCommand(ctx, cmd);
                     break;
-                case RESPONSE_COMMAND:
+                case RESPONSE_COMMAND://处理响应类的操作
                     processResponseCommand(ctx, cmd);
                     break;
                 default:
@@ -195,6 +195,7 @@ public abstract class NettyRemotingAbstract {
         final int opaque = cmd.getOpaque();
 
         if (pair != null) {
+            //构建异步线程操作
             Runnable run = new Runnable() {
                 @Override
                 public void run() {
@@ -204,6 +205,7 @@ public abstract class NettyRemotingAbstract {
                             @Override
                             public void callback(RemotingCommand response) {
                                 doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd, response);
+                                //如果不是单发需要返回对应的请求唯一标识和数据
                                 if (!cmd.isOnewayRPC()) {
                                     if (response != null) {
                                         response.setOpaque(opaque);
@@ -379,6 +381,7 @@ public abstract class NettyRemotingAbstract {
     /**
      * <p>
      * This method is periodically invoked to scan and expire deprecated request.
+     *  执行响应数据的处理
      * </p>
      */
     public void scanResponseTable() {

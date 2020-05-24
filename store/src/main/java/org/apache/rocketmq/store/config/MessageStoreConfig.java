@@ -20,17 +20,22 @@ import java.io.File;
 import org.apache.rocketmq.common.annotation.ImportantField;
 import org.apache.rocketmq.store.ConsumeQueue;
 
+/**
+ * 消息存储实现相关配置
+ */
 public class MessageStoreConfig {
     //The root directory in which the log data is kept
+    //日志文件保存的默认路径：在user.home下，在linux下即/home/xxxuser/store/
     @ImportantField
     private String storePathRootDir = System.getProperty("user.home") + File.separator + "store";
 
     //The directory in which the commitlog is kept
+    // commitlog保存的路径
     @ImportantField
     private String storePathCommitLog = System.getProperty("user.home") + File.separator + "store"
         + File.separator + "commitlog";
 
-    // CommitLog file size,default is 1G
+    // CommitLog file size,default is 1G（单位Byte）
     private int mappedFileSizeCommitLog = 1024 * 1024 * 1024;
     // ConsumeQueue file size,default is 30W
     private int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
@@ -42,8 +47,8 @@ public class MessageStoreConfig {
     // this will be set by pipe of calculate filter bit map.
     private int bitMapLengthConsumeQueueExt = 64;
 
-    // CommitLog flush interval
-    // flush data to disk
+    // CommitLog flush interval(间隔)
+    // flush data to disk(将数据从内存刷新到磁盘中)
     @ImportantField
     private int flushIntervalCommitLog = 500;
 
@@ -72,10 +77,12 @@ public class MessageStoreConfig {
     private int destroyMapedFileIntervalForcibly = 1000 * 120;
     private int redeleteHangedFileInterval = 1000 * 120;
     // When to delete,default is at 4 am
+    // 默认每天凌晨4点进行过期数据删除
     @ImportantField
     private String deleteWhen = "04";
     private int diskMaxUsedSpaceRatio = 75;
     // The number of hours to keep a log file before deleting it (in hours)
+    // 默认保存3天数据(72小时)
     @ImportantField
     private int fileReservedTime = 72;
     // Flow control for ConsumeQueue
@@ -121,6 +128,7 @@ public class MessageStoreConfig {
     @ImportantField
     private String haMasterAddress = null;
     private int haSlaveFallbehindMax = 1024 * 1024 * 256;
+    /** 默认异步刷新 */
     @ImportantField
     private BrokerRole brokerRole = BrokerRole.ASYNC_MASTER;
     @ImportantField

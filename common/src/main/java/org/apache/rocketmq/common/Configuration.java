@@ -41,6 +41,7 @@ public class Configuration {
     private ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     /**
      * All properties include configs in object and extend properties.
+     * 保存了所有的配置参数，即已经将所有不同来源的配置参数整合到了一起。备份使用
      */
     private Properties allConfigs = new Properties();
 
