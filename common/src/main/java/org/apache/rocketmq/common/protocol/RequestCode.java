@@ -51,7 +51,7 @@ public class RequestCode {
     public static final int HEART_BEAT = 34;
 
     public static final int UNREGISTER_CLIENT = 35;
-
+    /**Consumer消费失败后的消费重试机制,回发消息至Broker端时对应的请求类型 */
     public static final int CONSUMER_SEND_MSG_BACK = 36;
 
     public static final int END_TRANSACTION = 37;

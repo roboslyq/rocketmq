@@ -41,16 +41,27 @@ import org.apache.rocketmq.store.config.FlushDiskType;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+/**
+ * 文件内存映射对象层
+ * 1、MappedFileQueue、MappedFile、MappedByteBuffer
+ * 2、MappedFile对应着磁盘上的存储文件，同时也是MappedByteBuffer的封装，消息存储跟磁盘、内存的交互。
+ * 3、每个MappedFile大小是1G（1G=20124*1024*1024）。
+ */
 public class MappedFile extends ReferenceResource {
+    // 默认页大小
     public static final int OS_PAGE_SIZE = 1024 * 4;
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
+    // jvm映射虚拟内存总大小
     private static final AtomicLong TOTAL_MAPPED_VIRTUAL_MEMORY = new AtomicLong(0);
-
+    // jvm中mmap数量
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
+    // 当前写文件位置
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
+    // 提交位置
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
+    // 刷盘位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
+    // 文件大小
     protected int fileSize;
     /**
      * 文件channel,会将消息写入此文件中
@@ -61,11 +72,16 @@ public class MappedFile extends ReferenceResource {
      * 先写到缓存中，然后写的具体的文件中
      */
     protected ByteBuffer writeBuffer = null;
+    // 暂存池
     protected TransientStorePool transientStorePool = null;
     private String fileName;
+    // 映射起始偏移量
     private long fileFromOffset;
+    // 映射文件(原始文件,对应磁盘中的一个具体File)
     private File file;
+    // 映射的内存对象(Java特有)
     private MappedByteBuffer mappedByteBuffer;
+    // 最后一条消息保存时间
     private volatile long storeTimestamp = 0;
     private boolean firstCreateInQueue = false;
 
@@ -81,10 +97,14 @@ public class MappedFile extends ReferenceResource {
         init(fileName, fileSize, transientStorePool);
     }
 
+    /**
+     * 确保路径是OK的
+     * @param dirName
+     */
     public static void ensureDirOK(final String dirName) {
         if (dirName != null) {
             File f = new File(dirName);
-            if (!f.exists()) {
+            if (!f.exists()) {//如果文件不存在，则创建一个新的
                 boolean result = f.mkdirs();
                 log.info(dirName + " mkdir " + (result ? "OK" : "Failed"));
             }
@@ -169,15 +189,20 @@ public class MappedFile extends ReferenceResource {
         this.fileName = fileName;
         this.fileSize = fileSize;
         this.file = new File(fileName);
+        // 文件名为起始offset
         this.fileFromOffset = Long.parseLong(this.file.getName());
         boolean ok = false;
-
+        // 确保文件正常
         ensureDirOK(this.file.getParent());
 
         try {
+            //打开文件(读写权限)
             this.fileChannel = new RandomAccessFile(this.file, "rw").getChannel();
+            //映射为内存
             this.mappedByteBuffer = this.fileChannel.map(MapMode.READ_WRITE, 0, fileSize);
+            //记录总映射文件大小
             TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(fileSize);
+            //记录映射文件数量
             TOTAL_MAPPED_FILES.incrementAndGet();
             ok = true;
         } catch (FileNotFoundException e) {
@@ -219,19 +244,27 @@ public class MappedFile extends ReferenceResource {
         return appendMessagesInner(messageExtBatch, cb);
     }
 
+    /**
+     * 存储消息：将消息写入缓冲区（刷盘另外逻辑单独执行）
+     * @param messageExt
+     * @param cb
+     * @return
+     */
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb) {
         assert messageExt != null;
         assert cb != null;
-
+        //写的位置
         int currentPos = this.wrotePosition.get();
-
+        //如果当前
         if (currentPos < this.fileSize) {
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
             byteBuffer.position(currentPos);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
+                //写入缓冲区：普通消息
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
+                // 写入缓冲区：批量消息
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);
             } else {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
@@ -512,14 +545,26 @@ public class MappedFile extends ReferenceResource {
         this.committedPosition.set(pos);
     }
 
+    /**
+     * 文件预热核心功能代码
+     * 1、对文件进行 mmap 映射。
+     * 2、对整个文件每隔一个 PAGE_SIZE 写入一个字节，如果是同步刷盘，每写入一个字节进行一次强制的刷盘。
+     * 3、调用 libc 的 mlock 函数，对文件所在的内存区域进行锁定。
+     *    (系统调用 mlock 家族允许程序在物理内存上锁住它的部分或全部地址空间。
+     *     这将阻止 Linux 将这个内存页调度到交换空间（swap space），即使该程序已有一段时间没有访问这段空间）。
+     * @param type
+     * @param pages
+     */
     public void warmMappedFile(FlushDiskType type, int pages) {
         long beginTime = System.currentTimeMillis();
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
         int flush = 0;
         long time = System.currentTimeMillis();
         for (int i = 0, j = 0; i < this.fileSize; i += MappedFile.OS_PAGE_SIZE, j++) {
+            //每一而默认保存一个字节0
             byteBuffer.put(i, (byte) 0);
             // force flush when flush disk type is sync
+            // 当刷盘类型是同步时，强制同步刷盘
             if (type == FlushDiskType.SYNC_FLUSH) {
                 if ((i / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE) >= pages) {
                     flush = i;
@@ -528,6 +573,7 @@ public class MappedFile extends ReferenceResource {
             }
 
             // prevent gc
+            // 防止GC
             if (j % 1000 == 0) {
                 log.info("j={}, costTime={}", j, System.currentTimeMillis() - time);
                 time = System.currentTimeMillis();
@@ -575,11 +621,14 @@ public class MappedFile extends ReferenceResource {
         this.firstCreateInQueue = firstCreateInQueue;
     }
 
+    /**
+     * 锁定内存，防止操作系统对内存进行swap
+     */
     public void mlock() {
         final long beginTime = System.currentTimeMillis();
         final long address = ((DirectBuffer) (this.mappedByteBuffer)).address();
         Pointer pointer = new Pointer(address);
-        {
+        {   //本地方法调用
             int ret = LibC.INSTANCE.mlock(pointer, new NativeLong(this.fileSize));
             log.info("mlock {} {} {} ret = {} time consuming = {}", address, this.fileName, this.fileSize, ret, System.currentTimeMillis() - beginTime);
         }

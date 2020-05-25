@@ -71,7 +71,7 @@ public class RemotingCommand {
             }
         }
     }
-
+    /** 详情见 common.RequestCode*/
     private int code;
     private LanguageCode language = LanguageCode.JAVA;
     private int version = 0;

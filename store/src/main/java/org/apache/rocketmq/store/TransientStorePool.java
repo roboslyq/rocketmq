@@ -28,6 +28,9 @@ import org.apache.rocketmq.store.config.MessageStoreConfig;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+/**
+ * 暂存池
+ */
 public class TransientStorePool {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
@@ -45,15 +48,19 @@ public class TransientStorePool {
 
     /**
      * It's a heavy init method.
+     * 这个方法很重!!!需要分配内存,初始化指针对应.
      */
     public void init() {
         for (int i = 0; i < poolSize; i++) {
+            // 调用Unsafe分配内存
             ByteBuffer byteBuffer = ByteBuffer.allocateDirect(fileSize);
-
+            //获取DirectBuffer分配内存的地址
             final long address = ((DirectBuffer) byteBuffer).address();
+            //将地址包装为指针
             Pointer pointer = new Pointer(address);
+            // TODO
             LibC.INSTANCE.mlock(pointer, new NativeLong(fileSize));
-
+            //放入队列中
             availableBuffers.offer(byteBuffer);
         }
     }

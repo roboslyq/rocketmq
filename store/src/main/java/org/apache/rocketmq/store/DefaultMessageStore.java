@@ -378,6 +378,11 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 检查消息状态
+     * @param msg
+     * @return
+     */
     private PutMessageStatus checkMessage(MessageExtBrokerInner msg) {
         if (msg.getTopic().length() > Byte.MAX_VALUE) {
             log.warn("putMessage message topic length too long " + msg.getTopic().length());
@@ -405,6 +410,10 @@ public class DefaultMessageStore implements MessageStore {
         return PutMessageStatus.PUT_OK;
     }
 
+    /**
+     * 检查store状态
+     * @return
+     */
     private PutMessageStatus checkStoreStatus() {
         if (this.shutdown) {
             log.warn("message store has shutdown, so putMessage is forbidden");
@@ -502,16 +511,17 @@ public class DefaultMessageStore implements MessageStore {
      */
     @Override
     public PutMessageResult putMessage(MessageExtBrokerInner msg) {
+        // 检查store状态
         PutMessageStatus checkStoreStatus = this.checkStoreStatus();
         if (checkStoreStatus != PutMessageStatus.PUT_OK) {
             return new PutMessageResult(checkStoreStatus, null);
         }
-
+        // 检查消息状态
         PutMessageStatus msgCheckStatus = this.checkMessage(msg);
         if (msgCheckStatus == PutMessageStatus.MESSAGE_ILLEGAL) {
             return new PutMessageResult(msgCheckStatus, null);
         }
-
+        // 获取当前系统时间
         long beginTime = this.getSystemClock().now();
         /**
          * 调用CommitLog存储消息

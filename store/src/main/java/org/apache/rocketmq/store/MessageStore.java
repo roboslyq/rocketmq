@@ -58,7 +58,7 @@ public interface MessageStore {
     /** Store a message into store in async manner, the processor can process the next request
      *  rather than wait for result
      *  when result is completed, notify the client in async manner
-     *
+     *  存储消息
      * @param msg MessageInstance to store
      * @return a CompletableFuture for the result of store operation
      */
@@ -77,7 +77,7 @@ public interface MessageStore {
 
     /**
      * Store a message into store.
-     *
+     * 将一个消息存储到store中
      * @param msg Message instance to store
      * @return result of store operation.
      */

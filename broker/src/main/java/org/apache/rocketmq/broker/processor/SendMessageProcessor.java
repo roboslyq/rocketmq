@@ -58,7 +58,7 @@ import org.apache.rocketmq.store.config.StorePathConfigHelper;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
 /**
- * Broker的处理Producer生产消息的入口类(Netty层面)
+ * ======>核心方法：Broker的处理Producer生产消息的入口类(Netty层面)
  */
 public class SendMessageProcessor extends AbstractSendMessageProcessor implements NettyRequestProcessor {
 
@@ -102,20 +102,27 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
      */
     public CompletableFuture<RemotingCommand> asyncProcessRequest(ChannelHandlerContext ctx,
                                                                   RemotingCommand request) throws RemotingCommandException {
+        //发送消息上下文(即生产者生产消息)
         final SendMessageContext mqtraceContext;
         switch (request.getCode()) {
+            // consume端消费失败后的消费重试机制,回发消息至Broker
             case RequestCode.CONSUMER_SEND_MSG_BACK:
                 return this.asyncConsumerSendMsgBack(ctx, request);
             default:
+                //正常Producer生产消息
+                //构建消息头部
                 SendMessageRequestHeader requestHeader = parseRequestHeader(request);
                 if (requestHeader == null) {
                     return CompletableFuture.completedFuture(null);
                 }
+                //构建消息体
                 mqtraceContext = buildMsgContext(ctx, requestHeader);
+                //调用消息发送(存储)的前置钩子函数
                 this.executeSendMessageHookBefore(ctx, request, mqtraceContext);
-                if (requestHeader.isBatch()) {
+                if (requestHeader.isBatch()) {//批量消息
                     return this.asyncSendBatchMessage(ctx, request, mqtraceContext, requestHeader);
                 } else {
+                    /** 普通正常消息  */
                     return this.asyncSendMessage(ctx, request, mqtraceContext, requestHeader);
                 }
         }
@@ -274,26 +281,28 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
     private CompletableFuture<RemotingCommand> asyncSendMessage(ChannelHandlerContext ctx, RemotingCommand request,
                                                                 SendMessageContext mqtraceContext,
                                                                 SendMessageRequestHeader requestHeader) {
+        //预处理，生成response
         final RemotingCommand response = preSend(ctx, request, requestHeader);
         final SendMessageResponseHeader responseHeader = (SendMessageResponseHeader)response.readCustomHeader();
-
+        //code不为-1，表示异常，直接返回
         if (response.getCode() != -1) {
             return CompletableFuture.completedFuture(response);
         }
-
+        //获取请求body内容
         final byte[] body = request.getBody();
-
+        //获取queue id
         int queueIdInt = requestHeader.getQueueId();
+        //根据请求的Topic获取对应的配置TopicConfig
         TopicConfig topicConfig = this.brokerController.getTopicConfigManager().selectTopicConfig(requestHeader.getTopic());
-
+        //queueIdInt <0，表明生产者未指定queueId，则直接根据Topic配置，随机选取一个topicID.
         if (queueIdInt < 0) {
             queueIdInt = randomQueueId(topicConfig.getWriteQueueNums());
         }
-
+        // Broker层消息抽象
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
         msgInner.setTopic(requestHeader.getTopic());
         msgInner.setQueueId(queueIdInt);
-
+        //设置重试和死信队列相关属性
         if (!handleRetryAndDLQ(requestHeader, response, request, msgInner, topicConfig)) {
             return CompletableFuture.completedFuture(response);
         }
@@ -308,6 +317,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         msgInner.setReconsumeTimes(requestHeader.getReconsumeTimes() == null ? 0 : requestHeader.getReconsumeTimes());
         CompletableFuture<PutMessageResult> putMessageResult = null;
         Map<String, String> origProps = MessageDecoder.string2messageProperties(requestHeader.getProperties());
+        // 获取事务标识
         String transFlag = origProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
         if (transFlag != null && Boolean.parseBoolean(transFlag)) {
             //事务消息处理
@@ -323,6 +333,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             //普通消息处理：DefaultMessageStore
             putMessageResult = this.brokerController.getMessageStore().asyncPutMessage(msgInner);
         }
+        //返回结果
         return handlePutMessageResultFuture(putMessageResult, response, request, msgInner, responseHeader, mqtraceContext, ctx, queueIdInt);
     }
 
@@ -339,6 +350,15 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         );
     }
 
+    /**
+     * 重试(Retry)和死信队列(DLQ dead letter queue)控制
+     * @param requestHeader
+     * @param response
+     * @param request
+     * @param msg
+     * @param topicConfig
+     * @return
+     */
     private boolean handleRetryAndDLQ(SendMessageRequestHeader requestHeader, RemotingCommand response,
                                       RemotingCommand request,
                                       MessageExt msg, TopicConfig topicConfig) {
@@ -459,6 +479,18 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
 
     }
 
+    /**
+     * 结果处理
+     * @param putMessageResult
+     * @param response
+     * @param request
+     * @param msg
+     * @param responseHeader
+     * @param sendMessageContext
+     * @param ctx
+     * @param queueIdInt
+     * @return
+     */
     private RemotingCommand handlePutMessageResult(PutMessageResult putMessageResult, RemotingCommand response,
                                                    RemotingCommand request, MessageExt msg,
                                                    SendMessageResponseHeader responseHeader, SendMessageContext sendMessageContext, ChannelHandlerContext ctx,
@@ -665,12 +697,25 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         return context;
     }
 
+    /**
+     * 当生产者未指定queueId时，随机选取一个QueueId
+     * @param writeQueueNums
+     * @return
+     */
     private int randomQueueId(int writeQueueNums) {
         return (this.random.nextInt() % 99999999) % writeQueueNums;
     }
 
+    /**
+     * 预发送，即发送前检查以及创建Response响应
+     * @param ctx
+     * @param request
+     * @param requestHeader
+     * @return
+     */
     private RemotingCommand preSend(ChannelHandlerContext ctx, RemotingCommand request,
                                     SendMessageRequestHeader requestHeader) {
+        //创建响应response
         final RemotingCommand response = RemotingCommand.createResponseCommand(SendMessageResponseHeader.class);
 
         response.setOpaque(request.getOpaque());
@@ -681,13 +726,13 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         log.debug("Receive SendMessage request command {}", request);
 
         final long startTimestamp = this.brokerController.getBrokerConfig().getStartAcceptSendRequestTimeStamp();
-
+        // 如果messagestore的当前时间戳小于请求的起始时间戳，即证明messagestore没有可用的数据。可以直接返回
         if (this.brokerController.getMessageStore().now() < startTimestamp) {
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark(String.format("broker unable to service, until %s", UtilAll.timeMillisToHumanString2(startTimestamp)));
             return response;
         }
-
+        //设置response的状态为-1：response正常创建，需要后续处理
         response.setCode(-1);
         super.msgCheck(ctx, requestHeader, response);
         if (response.getCode() != -1) {

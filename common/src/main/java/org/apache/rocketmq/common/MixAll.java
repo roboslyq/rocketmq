@@ -78,6 +78,7 @@ public class MixAll {
     public static final long MASTER_ID = 0L;
     public static final long CURRENT_JVM_PID = getPID();
     public static final String RETRY_GROUP_TOPIC_PREFIX = "%RETRY%";
+    /** DLQ-死信队列(Dead Letter Queue)用来保存处理失败或者过期的消息。 */
     public static final String DLQ_GROUP_TOPIC_PREFIX = "%DLQ%";
     public static final String REPLY_TOPIC_POSTFIX = "REPLY_TOPIC";
     public static final String SYSTEM_TOPIC_PREFIX = "rmq_sys_";
