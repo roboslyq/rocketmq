@@ -230,6 +230,12 @@ public class MappedFile extends ReferenceResource {
         return fileChannel;
     }
 
+    /**
+     * 将消息写入Mappedfile中
+     * @param msg
+     * @param cb
+     * @return
+     */
     public AppendMessageResult appendMessage(final MessageExtBrokerInner msg, final AppendMessageCallback cb) {
         return appendMessagesInner(msg, cb);
     }
@@ -322,18 +328,20 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
+     * 刷盘实现：将缓存中的消息刷到磁盘中，其实就是用FileChannel或MappedByteBuffer的force方法。
      * @return The current flushed position
      */
     public int flush(final int flushLeastPages) {
         if (this.isAbleToFlush(flushLeastPages)) {
             if (this.hold()) {
                 int value = getReadPosition();
-
                 try {
                     //We only append data to fileChannel or mappedByteBuffer, never both.
                     if (writeBuffer != null || this.fileChannel.position() != 0) {
+                        //刷盘
                         this.fileChannel.force(false);
                     } else {
+                        //刷盘
                         this.mappedByteBuffer.force();
                     }
                 } catch (Throwable e) {
@@ -546,7 +554,8 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
-     * 文件预热核心功能代码
+     * 文件预热核心功能代码：RocketMQ 消息写入对延时敏感，为了避免在写入消息时，CommitLog 文件尚未打开或者文件尚未加载到内存引起的
+     * load 的开销，RocketMQ 实现了文件预热机制
      * 1、对文件进行 mmap 映射。
      * 2、对整个文件每隔一个 PAGE_SIZE 写入一个字节，如果是同步刷盘，每写入一个字节进行一次强制的刷盘。
      * 3、调用 libc 的 mlock 函数，对文件所在的内存区域进行锁定。
@@ -557,6 +566,7 @@ public class MappedFile extends ReferenceResource {
      */
     public void warmMappedFile(FlushDiskType type, int pages) {
         long beginTime = System.currentTimeMillis();
+//        对文件进行 mmap 映射。
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
         int flush = 0;
         long time = System.currentTimeMillis();

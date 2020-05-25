@@ -396,6 +396,11 @@ public class DefaultMessageStore implements MessageStore {
         return PutMessageStatus.PUT_OK;
     }
 
+    /**
+     * 检查批量消息
+     * @param messageExtBatch
+     * @return
+     */
     private PutMessageStatus checkMessages(MessageExtBatch messageExtBatch) {
         if (messageExtBatch.getTopic().length() > Byte.MAX_VALUE) {
             log.warn("putMessage message topic length too long " + messageExtBatch.getTopic().length());
@@ -524,17 +529,18 @@ public class DefaultMessageStore implements MessageStore {
         // 获取当前系统时间
         long beginTime = this.getSystemClock().now();
         /**
-         * 调用CommitLog存储消息
+         * 调用CommitLog存储消息：将日志写入CommitLog文件
          * */
         PutMessageResult result = this.commitLog.putMessage(msg);
         long elapsedTime = this.getSystemClock().now() - beginTime;
         if (elapsedTime > 500) {
             log.warn("not in lock elapsed time(ms)={}, bodyLength={}", elapsedTime, msg.getBody().length);
         }
-
+        // 记录相关统计信息
         this.storeStatsService.setPutMessageEntireTimeMax(elapsedTime);
 
         if (null == result || !result.isOk()) {
+            // 如果写commitlog失败，则记录失败次数
             this.storeStatsService.getPutMessageFailedTimes().incrementAndGet();
         }
 

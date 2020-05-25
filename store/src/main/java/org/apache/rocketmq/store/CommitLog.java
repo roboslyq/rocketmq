@@ -64,7 +64,7 @@ public class CommitLog {
 
     //If TransientStorePool enabled, we must flush message to FileChannel at fixed periods
     private final FlushCommitLogService commitLogService;
-
+    /** 将消息追加到mappedFile中 */
     private final AppendMessageCallback appendMessageCallback;
     private final ThreadLocal<MessageExtBatchEncoder> batchEncoderThreadLocal;
     protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
@@ -801,7 +801,7 @@ public class CommitLog {
 
         String topic = msg.getTopic();
         int queueId = msg.getQueueId();
-        // 主题和存储ID
+        //  获取消息类型（事务消息，非事务消息，Commit消息)
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         // 事务相关 TODO 待读：事务相关
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
@@ -875,7 +875,9 @@ public class CommitLog {
                         beginTimeInLock = 0;
                         return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, result);
                     }
-                    //写新文件
+                    /**
+                     * 将消息写入mappedFile中（写Pagecache缓存）
+                     */
                     result = mappedFile.appendMessage(msg, this.appendMessageCallback);
                     break;
                 case MESSAGE_SIZE_EXCEEDED:
@@ -911,7 +913,7 @@ public class CommitLog {
         storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
         storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
         /**
-         * // 进行同步||异步 flush||commit：将缓存中的信息刷入到磁盘中
+         * 行同步||异步 flush||commit：将缓存中的信息刷入到磁盘中
          */
         handleDiskFlush(result, putMessageResult, msg);
         /**
