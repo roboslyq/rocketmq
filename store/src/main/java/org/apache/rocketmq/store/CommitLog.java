@@ -58,14 +58,28 @@ public class CommitLog {
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     // End of file empty MAGIC CODE cbd43194
     protected final static int BLANK_MAGIC_CODE = -875286124;
+    /** MappedFile队列 */
     protected final MappedFileQueue mappedFileQueue;
+    /** 消息存储器 */
     protected final DefaultMessageStore defaultMessageStore;
-    private final FlushCommitLogService flushCommitLogService;
-
-    //If TransientStorePool enabled, we must flush message to FileChannel at fixed periods
+    /* 刷盘定时任务
+    * 什么时候写到writerBuffer,什么时候写到mappedByteBuffer呢？
+    *
+    * */
+    /**
+     * 刷盘方式一：commit刷盘
+     *  message-->writeBuffer-->filechannel-->filechannel.force()
+     */
     private final FlushCommitLogService commitLogService;
+    /**
+     * 刷盘方式一：flush刷盘，刷mappedByteBuffer
+     * message-->mappedByteBuffer-->filechannel-->filechannel.force()
+     */
+    private final FlushCommitLogService flushCommitLogService;
+    //If TransientStorePool enabled, we must flush message to FileChannel at fixed periods
     /** 将消息追加到mappedFile中 */
     private final AppendMessageCallback appendMessageCallback;
+    /** 主题队列 */
     private final ThreadLocal<MessageExtBatchEncoder> batchEncoderThreadLocal;
     protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
     protected volatile long confirmOffset = -1L;
@@ -76,17 +90,21 @@ public class CommitLog {
      */
     protected final PutMessageLock putMessageLock;
 
+    /**
+     * 构造函数
+     * @param defaultMessageStore
+     */
     public CommitLog(final DefaultMessageStore defaultMessageStore) {
         this.mappedFileQueue = new MappedFileQueue(defaultMessageStore.getMessageStoreConfig().getStorePathCommitLog(),
             defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog(), defaultMessageStore.getAllocateMappedFileService());
         this.defaultMessageStore = defaultMessageStore;
-
+        // 构建MappedByteBuffer刷盘
         if (FlushDiskType.SYNC_FLUSH == defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
             this.flushCommitLogService = new GroupCommitService();
         } else {
             this.flushCommitLogService = new FlushRealTimeService();
         }
-
+        // 构建writeBuffer刷盘
         this.commitLogService = new CommitRealTimeService();
 
         this.appendMessageCallback = new DefaultAppendMessageCallback(defaultMessageStore.getMessageStoreConfig().getMaxMessageSize());
@@ -1269,6 +1287,9 @@ public class CommitLog {
         protected static final int RETRY_TIMES_OVER = 10;
     }
 
+    /**
+     * 刷盘任务
+     */
     class CommitRealTimeService extends FlushCommitLogService {
 
         private long lastCommitTimestamp = 0;
@@ -1297,6 +1318,7 @@ public class CommitLog {
                 }
 
                 try {
+                    //刷盘
                     boolean result = CommitLog.this.mappedFileQueue.commit(commitDataLeastPages);
                     long end = System.currentTimeMillis();
                     if (!result) {
@@ -1323,6 +1345,9 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 刷盘任务
+     */
     class FlushRealTimeService extends FlushCommitLogService {
         private long lastFlushTimestamp = 0;
         private long printTimes = 0;
@@ -1361,6 +1386,7 @@ public class CommitLog {
                     }
 
                     long begin = System.currentTimeMillis();
+                    // 调用MappedFileQueue进行刷盘
                     CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages);
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {

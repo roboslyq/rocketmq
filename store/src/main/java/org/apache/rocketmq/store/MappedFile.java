@@ -263,6 +263,11 @@ public class MappedFile extends ReferenceResource {
         int currentPos = this.wrotePosition.get();
         //如果当前
         if (currentPos < this.fileSize) {
+            /**
+             * 1、slice()方法会返回一个新的buffer，但是新的byteBuffer和源对象writeBuffer引用的是同一个。
+             * 2、对于 writeBuffer和mappedByteBuffer选择，优先选择writeBuffer，只有wirteBuffer为空时，才会选择mappedByteBuffer。
+             * 3、writeBuffer是通过CommitLog#commitLogService进行刷盘，而mappedByteBuffer是通过CommitLog#flushCommitLogService进行刷盘
+             */
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
             byteBuffer.position(currentPos);
             AppendMessageResult result;
@@ -358,6 +363,11 @@ public class MappedFile extends ReferenceResource {
         return this.getFlushedPosition();
     }
 
+    /**
+     * 刷盘：刷writeBuffer
+     * @param commitLeastPages
+     * @return
+     */
     public int commit(final int commitLeastPages) {
         if (writeBuffer == null) {
             //no need to commit data to file channel, so just regard wrotePosition as committedPosition.
@@ -365,6 +375,7 @@ public class MappedFile extends ReferenceResource {
         }
         if (this.isAbleToCommit(commitLeastPages)) {
             if (this.hold()) {
+                // 恻盘
                 commit0(commitLeastPages);
                 this.release();
             } else {
@@ -381,6 +392,10 @@ public class MappedFile extends ReferenceResource {
         return this.committedPosition.get();
     }
 
+    /**
+     * 刷盘writeBuffer:只commit,还没flush
+     * @param commitLeastPages
+     */
     protected void commit0(final int commitLeastPages) {
         int writePos = this.wrotePosition.get();
         int lastCommittedPosition = this.committedPosition.get();
@@ -391,6 +406,7 @@ public class MappedFile extends ReferenceResource {
                 byteBuffer.position(lastCommittedPosition);
                 byteBuffer.limit(writePos);
                 this.fileChannel.position(lastCommittedPosition);
+                //将writeBuffer写入到fileChannel中
                 this.fileChannel.write(byteBuffer);
                 this.committedPosition.set(writePos);
             } catch (Throwable e) {
@@ -398,22 +414,37 @@ public class MappedFile extends ReferenceResource {
             }
         }
     }
-
+    /**
+     * 是否能够flush。满足如下条件任意条件：
+     * 1. 文件已经写满
+     * 2. flushLeastPages > 0 && 未flush部分超过flushLeastPages
+     * 3. flushLeastPages = 0 && 有新写入部分
+     *
+     * @param flushLeastPages flush最小分页
+     * @return 是否能够写入
+     */
     private boolean isAbleToFlush(final int flushLeastPages) {
         int flush = this.flushedPosition.get();
         int write = getReadPosition();
-
+        // 当前文件已经写满
         if (this.isFull()) {
             return true;
         }
-
+        //  需要刷新的分页大于0,并且大于或等于刷新阀值flushLeastPages
         if (flushLeastPages > 0) {
             return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= flushLeastPages;
         }
-
+        // 新写入的部分数据大于flush
         return write > flush;
     }
-
+    /**
+     * 是否能够commit。满足如下条件任意条件：
+     * 1. 映射文件已经写满
+     * 2. commitLeastPages > 0 && 未commit部分超过commitLeastPages
+     * 3. commitLeastPages = 0 && 有新写入部分
+     *
+     * @param commitLeastPages commit的最小页数
+     */
     protected boolean isAbleToCommit(final int commitLeastPages) {
         int flush = this.committedPosition.get();
         int write = this.wrotePosition.get();
@@ -436,13 +467,13 @@ public class MappedFile extends ReferenceResource {
     public void setFlushedPosition(int pos) {
         this.flushedPosition.set(pos);
     }
-
+    //如果写的位置和要求文件大小一样，则写满了
     public boolean isFull() {
         return this.fileSize == this.wrotePosition.get();
     }
 
     /**
-     * 从mappedBuffer中拉取消息
+     * 从mappedBuffer中拉取消息:返回从pos到 pos + size的内存映射(即指定拉取数据长度)
      * @param pos
      * @param size
      * @return
@@ -470,6 +501,11 @@ public class MappedFile extends ReferenceResource {
         return null;
     }
 
+    /**
+     * 随机读取: 返回从pos到最大有效位置的所有数据(未指定将要拉取的数据长度)
+     * @param pos
+     * @return
+     */
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
         int readPosition = getReadPosition();
         if (pos < readPosition && pos >= 0) {
@@ -543,9 +579,11 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
+     * 返回的是可以读到的最大位置(就是实际写到的位置)
      * @return The max position which have valid data
      */
     public int getReadPosition() {
+        //写的最大位
         return this.writeBuffer == null ? this.wrotePosition.get() : this.committedPosition.get();
     }
 
