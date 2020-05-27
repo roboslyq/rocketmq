@@ -122,7 +122,9 @@ public class DefaultMessageStore implements MessageStore {
     private final BrokerStatsManager brokerStatsManager;
     private final MessageArrivingListener messageArrivingListener;
     private final BrokerConfig brokerConfig;
-
+    /**
+     * message store状态是否关闭：关闭状态下不允许消费消息
+     */
     private volatile boolean shutdown = true;
 
     private StoreCheckpoint storeCheckpoint;
@@ -449,19 +451,26 @@ public class DefaultMessageStore implements MessageStore {
         return PutMessageStatus.PUT_OK;
     }
 
+    /**
+     * 异步存储消息
+     * @param msg MessageInstance to store
+     * @return
+     */
     @Override
     public CompletableFuture<PutMessageResult> asyncPutMessage(MessageExtBrokerInner msg) {
         PutMessageStatus checkStoreStatus = this.checkStoreStatus();
+        //检查store状态
         if (checkStoreStatus != PutMessageStatus.PUT_OK) {
             return CompletableFuture.completedFuture(new PutMessageResult(checkStoreStatus, null));
         }
-
+        // 检查消息状态
         PutMessageStatus msgCheckStatus = this.checkMessage(msg);
         if (msgCheckStatus == PutMessageStatus.MESSAGE_ILLEGAL) {
             return CompletableFuture.completedFuture(new PutMessageResult(msgCheckStatus, null));
         }
 
         long beginTime = this.getSystemClock().now();
+        //提交异步消息
         CompletableFuture<PutMessageResult> putResultFuture = this.commitLog.asyncPutMessage(msg);
 
         putResultFuture.thenAccept((result) -> {
@@ -599,31 +608,34 @@ public class DefaultMessageStore implements MessageStore {
 
     /**
      * 从brokerstore中消费消息(拉取消息)，相关的核心代码是commitLog的调用
-     * @param group Consumer group that launches this query.
-     * @param topic Topic to query.
-     * @param queueId Queue ID to query.
-     * @param offset Logical offset to start from.
-     * @param maxMsgNums Maximum count of messages to query.
-     * @param messageFilter Message filter used to screen desired messages.
+     * @param group Consumer group that launches this query. 消费组
+     * @param topic Topic to query.    主题
+     * @param queueId Queue ID to query.    队列ID
+     * @param offset Logical offset to start from.  要消费消息的逻辑偏移量
+     * @param maxMsgNums Maximum count of messages to query. 消息最大消息数量
+     * @param messageFilter Message filter used to screen desired messages. 消息过滤器
      * @return
      */
     public GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset,
         final int maxMsgNums,
         final MessageFilter messageFilter) {
+        // MessageStore是否关闭状态检查
         if (this.shutdown) {
             log.warn("message store has shutdown, so getMessage is forbidden");
             return null;
         }
-
+        // MessageStore是否可读
         if (!this.runningFlags.isReadable()) {
             log.warn("message store is not readable, so getMessage is forbidden " + this.runningFlags.getFlagBits());
             return null;
         }
-
+        // 开始时间
         long beginTime = this.getSystemClock().now();
-
+        // 定义变量：获取消息结果，默认是NO_MESSAGE_IN_QUEUE
         GetMessageStatus status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
+        //拉取消息的偏移量
         long nextBeginOffset = offset;
+        //定义最小和最大偏移量
         long minOffset = 0;
         long maxOffset = 0;
         //创建获取消息的结果体
@@ -637,11 +649,14 @@ public class DefaultMessageStore implements MessageStore {
             minOffset = consumeQueue.getMinOffsetInQueue();
             maxOffset = consumeQueue.getMaxOffsetInQueue();
 
-            if (maxOffset == 0) {
+            if (maxOffset == 0) {//为0表示没有消息在队列中
+                //修改状态为没有message
                 status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
+                //修改下一次消费偏移量为0
                 nextBeginOffset = nextOffsetCorrection(offset, 0);
-            } else if (offset < minOffset) {
+            } else if (offset < minOffset) {//offset太小(即起始位置小于队列中的minOffset)
                 status = GetMessageStatus.OFFSET_TOO_SMALL;
+                //调整为minOffset
                 nextBeginOffset = nextOffsetCorrection(offset, minOffset);
             } else if (offset == maxOffset) {
                 status = GetMessageStatus.OFFSET_OVERFLOW_ONE;
@@ -653,7 +668,7 @@ public class DefaultMessageStore implements MessageStore {
                 } else {
                     nextBeginOffset = nextOffsetCorrection(offset, maxOffset);
                 }
-            } else {
+            } else {//正常情况
                 /** 根据索引找到查询数据的协议对象位置 */
                 SelectMappedBufferResult bufferConsumeQueue = consumeQueue.getIndexBuffer(offset);
                 if (bufferConsumeQueue != null) {
@@ -1272,7 +1287,7 @@ public class DefaultMessageStore implements MessageStore {
                 map = newMap;
             }
         }
-        //根据queue获得消费队列
+        //根据queueId获得消费队列
         ConsumeQueue logic = map.get(queueId);
         if (null == logic) {
             //重新封装一个消息队列数据
@@ -1561,6 +1576,10 @@ public class DefaultMessageStore implements MessageStore {
         return runningFlags;
     }
 
+    /**
+     * 将消息分发到各不同的环境中，比如索引文件，commitlog，consumeQueue等
+     * @param req
+     */
     public void doDispatch(DispatchRequest req) {
         for (CommitLogDispatcher dispatcher : this.dispatcherList) {
             dispatcher.dispatch(req);
@@ -1851,7 +1870,7 @@ public class DefaultMessageStore implements MessageStore {
     class FlushConsumeQueueService extends ServiceThread {
         private static final int RETRY_TIMES_OVER = 3;
         private long lastFlushTimestamp = 0;
-
+        //刷新消息
         private void doFlush(int retryTimes) {
             int flushConsumeQueueLeastPages = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueLeastPages();
 
@@ -1917,6 +1936,10 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * ReputMessageService，消息存储到commitLog后，MessageStore的接口调用就直接返回了，
+     * 后续由ReputMessageService负责将消息分发到ConsumeQueue和IndexService。
+     */
     class ReputMessageService extends ServiceThread {
 
         private volatile long reputFromOffset = 0;
@@ -2032,7 +2055,7 @@ public class DefaultMessageStore implements MessageStore {
         @Override
         public void run() {
             DefaultMessageStore.log.info(this.getServiceName() + " service started");
-
+            //一直循环刷将缓存刷consumeQueue和Index中
             while (!this.isStopped()) {
                 try {
                     Thread.sleep(1);

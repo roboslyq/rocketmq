@@ -18,6 +18,9 @@ package org.apache.rocketmq.store;
 
 import java.nio.ByteBuffer;
 
+/**
+ * 消费消息的结果：即对它startOffset,size可以获取mappedFile和byteBuffer中具体的内容
+ */
 public class SelectMappedBufferResult {
 
     private final long startOffset;

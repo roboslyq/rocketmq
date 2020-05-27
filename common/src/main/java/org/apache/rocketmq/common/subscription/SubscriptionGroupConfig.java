@@ -19,13 +19,16 @@ package org.apache.rocketmq.common.subscription;
 
 import org.apache.rocketmq.common.MixAll;
 
+/**
+ * SubscriptionConfig:订阅组配置
+ */
 public class SubscriptionGroupConfig {
-
+    //组名称
     private String groupName;
-
+    //订阅组是否可用
     private boolean consumeEnable = true;
     private boolean consumeFromMinEnable = true;
-
+    //广播消息是否可用
     private boolean consumeBroadcastEnable = true;
 
     private int retryQueueNums = 1;

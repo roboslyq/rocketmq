@@ -16,6 +16,9 @@
  */
 package org.apache.rocketmq.store;
 
+/**
+ * 运行状态标志器：使用位运算
+ */
 public class RunningFlags {
 
     private static final int NOT_READABLE_BIT = 1;

@@ -16,12 +16,20 @@
  */
 package org.apache.rocketmq.common.constant;
 
+/**
+ * 权限校验
+ */
 public class PermName {
-    public static final int PERM_PRIORITY = 0x1 << 3;
-    public static final int PERM_READ = 0x1 << 2;
-    public static final int PERM_WRITE = 0x1 << 1;
-    public static final int PERM_INHERIT = 0x1 << 0;
+    public static final int PERM_PRIORITY = 0x1 << 3;   //0b 1000
+    public static final int PERM_READ = 0x1 << 2;       //0b 0100
+    public static final int PERM_WRITE = 0x1 << 1;      //0b 0010
+    public static final int PERM_INHERIT = 0x1 << 0;    //0b 0001
 
+    /**
+     * 权限转字符串：输出三位，参考linx的权限。比如RWX,R-X --X,-WX等。
+     * @param perm
+     * @return
+     */
     public static String perm2String(final int perm) {
         final StringBuffer sb = new StringBuffer("---");
         if (isReadable(perm)) {
@@ -39,14 +47,29 @@ public class PermName {
         return sb.toString();
     }
 
+    /**
+     * 可读
+     * @param perm
+     * @return
+     */
     public static boolean isReadable(final int perm) {
         return (perm & PERM_READ) == PERM_READ;
     }
 
+    /**
+     * 可写
+     * @param perm
+     * @return
+     */
     public static boolean isWriteable(final int perm) {
         return (perm & PERM_WRITE) == PERM_WRITE;
     }
 
+    /**
+     * TODO　可继承
+     * @param perm
+     * @return
+     */
     public static boolean isInherited(final int perm) {
         return (perm & PERM_INHERIT) == PERM_INHERIT;
     }

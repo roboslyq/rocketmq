@@ -103,9 +103,9 @@ public class PullMessageProcessor extends AsyncNettyRequestProcessor implements 
         throws RemotingCommandException {
         //构造响应体
         RemotingCommand response = RemotingCommand.createResponseCommand(PullMessageResponseHeader.class);
-        //响应消息头
+        //从构造的响应体中获取对应消息头
         final PullMessageResponseHeader responseHeader = (PullMessageResponseHeader) response.readCustomHeader();
-        //解码请求消息头
+        //从请求的消息中，解码请求消息头
         final PullMessageRequestHeader requestHeader =
             (PullMessageRequestHeader) request.decodeCommandCustomHeader(PullMessageRequestHeader.class);
         //响应唯一标识
@@ -117,7 +117,7 @@ public class PullMessageProcessor extends AsyncNettyRequestProcessor implements 
             response.setRemark(String.format("the broker[%s] pulling message is forbidden", this.brokerController.getBrokerConfig().getBrokerIP1()));
             return response;
         }
-        //订阅组的配置
+        //订阅组的配置，如果为空抛出异常
         SubscriptionGroupConfig subscriptionGroupConfig =
             this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(requestHeader.getConsumerGroup());
         if (null == subscriptionGroupConfig) {
@@ -131,11 +131,14 @@ public class PullMessageProcessor extends AsyncNettyRequestProcessor implements 
             response.setRemark("subscription group no permission, " + requestHeader.getConsumerGroup());
             return response;
         }
-        //标识位：会再后续代码中使用是否需要做XXx事件
+        //标识位：会再后续代码中使用是否需要做XXX事件
+        // TODO 是否有挂起标识：长轮询实现
         final boolean hasSuspendFlag = PullSysFlag.hasSuspendFlag(requestHeader.getSysFlag());
+        // TODO 事务消息提交标识
         final boolean hasCommitOffsetFlag = PullSysFlag.hasCommitOffsetFlag(requestHeader.getSysFlag());
+        // TODO 消息订阅标识
         final boolean hasSubscriptionFlag = PullSysFlag.hasSubscriptionFlag(requestHeader.getSysFlag());
-
+        // 如果有挂起标识，获取挂起时间(即消息可能延迟最长时间)
         final long suspendTimeoutMillisLong = hasSuspendFlag ? requestHeader.getSuspendTimeoutMillis() : 0;
 
         //topic的配置项
@@ -164,9 +167,10 @@ public class PullMessageProcessor extends AsyncNettyRequestProcessor implements 
 
         SubscriptionData subscriptionData = null;
         ConsumerFilterData consumerFilterData = null;
-        //标识位1：如果有订阅标识
+        //TODO 标识位1：如果有订阅标识
         if (hasSubscriptionFlag) {
             try {
+                // 构建SubscriptionData
                 subscriptionData = FilterAPI.build(
                     requestHeader.getTopic(), requestHeader.getSubscription(), requestHeader.getExpressionType()
                 );

@@ -25,6 +25,9 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+/**
+ * 待消费消息的队列：是CommitLog的一个索引，查找消息的时候会先ConsumerQueue获取offset，然后再去CommitLog拿消息
+ */
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
@@ -35,12 +38,12 @@ public class ConsumeQueue {
 
     private final MappedFileQueue mappedFileQueue;
     private final String topic;
-    private final int queueId;
-    private final ByteBuffer byteBufferIndex;
+    private final int queueId;  //队列id
+    private final ByteBuffer byteBufferIndex; // 写索引时用到的ByteBuffer
 
     private final String storePath;
     private final int mappedFileSize;
-    private long maxPhysicOffset = -1;
+    private long maxPhysicOffset = -1; // 最后一个消息对应的物理Offset
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
 

@@ -579,6 +579,11 @@ public class CommitLog {
         return beginTimeInLock;
     }
 
+    /**
+     * 提交异步消息
+     * @param msg
+     * @return
+     */
     public CompletableFuture<PutMessageResult> asyncPutMessage(final MessageExtBrokerInner msg) {
         // Set the storage time
         msg.setStoreTimestamp(System.currentTimeMillis());
@@ -618,7 +623,7 @@ public class CommitLog {
         long elapsedTimeInLock = 0;
         MappedFile unlockMappedFile = null;
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
-
+        // 自旋锁保存消息，从而保证消息的存储是原理化的，线程 安全的
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         try {
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
@@ -629,6 +634,7 @@ public class CommitLog {
             msg.setStoreTimestamp(beginLockTimestamp);
 
             if (null == mappedFile || mappedFile.isFull()) {
+                // mappedFile为空，创建一个最近的文件
                 mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
             }
             if (null == mappedFile) {
@@ -636,7 +642,7 @@ public class CommitLog {
                 beginTimeInLock = 0;
                 return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null));
             }
-
+            // 异步保存消息
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
             switch (result.getStatus()) {
                 case PUT_OK:

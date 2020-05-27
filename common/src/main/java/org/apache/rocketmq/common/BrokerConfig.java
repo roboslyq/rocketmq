@@ -40,7 +40,13 @@ public class BrokerConfig {
     private String brokerClusterName = "DefaultCluster";
     @ImportantField
     private long brokerId = MixAll.MASTER_ID;
+    /**
+     * 设置Broker为可读并且可写，此时，值为0b 0110 ,十进制为6
+     */
     private int brokerPermission = PermName.PERM_READ | PermName.PERM_WRITE;
+    /**
+     * 默认的Queue数量有8个
+     */
     private int defaultTopicQueueNums = 8;
     @ImportantField
     private boolean autoCreateTopicEnable = true;
