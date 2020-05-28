@@ -69,7 +69,7 @@ public class MappedFile extends ReferenceResource {
     protected FileChannel fileChannel;
     /**
      * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
-     * 先写到缓存中，然后写的具体的文件中
+     * 此Buffer就一个普通的buffer，与Commit文件没有关系，消息先写到缓存中，然后通过定时任务异步写到具体的文件中
      */
     protected ByteBuffer writeBuffer = null;
     // 暂存池

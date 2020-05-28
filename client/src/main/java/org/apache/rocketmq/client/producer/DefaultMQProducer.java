@@ -59,10 +59,12 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     * 具体的消息发送器实现
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
     private final InternalLogger log = ClientLogger.getLog();
     /**
+     * 生产组：概念上将所有的Producer划分组同一种角色，这种划分在涉及事务消息时十分重要。
      * Producer group conceptually aggregates all producer instances of exactly same role, which is particularly
      * important when transactional messages are involved. </p>
      *
@@ -74,21 +76,25 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Just for testing or demo program
+     * 仅仅是测试或者demo编程使用，创建一个新Topic标识
      */
     private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
     /**
      * Number of queues to create per default topic.
+     * 默认的Topic的queues数量
      */
     private volatile int defaultTopicQueueNums = 4;
 
     /**
      * Timeout for sending messages.
+     * 超时时间
      */
     private int sendMsgTimeout = 3000;
 
     /**
-     * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
+     * Compress message body threshold(阀值), namely, message body larger than 4k will be compressed on default.
+     * 开户消息压缩的空阀值
      */
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
@@ -96,6 +102,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * Maximum number of retry to perform internally before claiming sending failure in synchronous mode. </p>
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
+     * 同步发送消息时失败时重试次数：可能导致消息重复生产，需要消费者幂等性
      */
     private int retryTimesWhenSendFailed = 2;
 
@@ -103,26 +110,31 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * Maximum number of retry to perform internally before claiming sending failure in asynchronous mode. </p>
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
+     * 异步发送消息时失败时重试次数：可能导致消息重复生产，需要消费者幂等性
      */
     private int retryTimesWhenSendAsyncFailed = 2;
 
     /**
      * Indicate whether to retry another broker on sending failure internally.
+     * 是否在失败时选择另一个broker重发，默认是false
      */
     private boolean retryAnotherBrokerWhenNotStoreOK = false;
 
     /**
      * Maximum allowed message size in bytes.
+     * 最大消息限制：4M
      */
     private int maxMessageSize = 1024 * 1024 * 4; // 4M
 
     /**
      * Interface of asynchronous transfer data
+     * TODO 异步传输数据的接口
      */
     private TraceDispatcher traceDispatcher = null;
 
     /**
      * Default constructor.
+     * 默认构造函数
      */
     public DefaultMQProducer() {
         this(null, MixAll.DEFAULT_PRODUCER_GROUP, null);
@@ -130,7 +142,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Constructor specifying the RPC hook.
-     *
+     * 构造函数，传入指定远程调用钩子
      * @param rpcHook RPC hook to execute per each remoting command execution.
      */
     public DefaultMQProducer(RPCHook rpcHook) {
@@ -175,7 +187,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Constructor specifying producer group.
-     *
+     *  TODO namespace是个什么概念？
      * @param namespace Namespace for this MQ Producer instance.
      * @param producerGroup Producer group, see the name-sake field.
      */

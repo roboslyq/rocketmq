@@ -94,6 +94,10 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.exception.RemotingTimeoutException;
 import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
 
+/**
+ * 默认的MQ消息发送器实现，是具体实现，供平台内部使用，不对用户使用。
+ * 用户使用请使用DefaultMQProducer类。
+ */
 public class DefaultMQProducerImpl implements MQProducerInner {
     private final InternalLogger log = ClientLogger.getLog();
     private final Random random = new Random();
