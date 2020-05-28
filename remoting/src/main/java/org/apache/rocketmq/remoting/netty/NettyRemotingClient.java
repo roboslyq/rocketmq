@@ -359,7 +359,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     }
 
     /**
-     * 同步拉取消息
+     * 同步拉取/发送 消息
      * @param addr
      * @param request
      * @param timeoutMillis
@@ -381,7 +381,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 if (timeoutMillis < costTime) {
                     throw new RemotingTimeoutException("invokeSync call timeout");
                 }
-                //同步拉取消息(基于Netty)
+                //同步拉取/发送消息(基于Netty)
                 RemotingCommand response = this.invokeSyncImpl(channel, request, timeoutMillis - costTime);
                 doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(channel), request, response);
                 return response;
@@ -402,7 +402,9 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             throw new RemotingConnectException(addr);
         }
     }
-
+    /**
+     *  生成Channel，如果addr为空，默认使用namesrv的相关地址
+     * */
     private Channel getAndCreateChannel(final String addr) throws RemotingConnectException, InterruptedException {
         if (null == addr) {
             return getAndCreateNameserverChannel();
@@ -519,6 +521,18 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         return null;
     }
 
+    /**
+     * 异步发送消息
+     * @param addr
+     * @param request
+     * @param timeoutMillis
+     * @param invokeCallback
+     * @throws InterruptedException
+     * @throws RemotingConnectException
+     * @throws RemotingTooMuchRequestException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     */
     @Override
     public void invokeAsync(String addr, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback)
         throws InterruptedException, RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException,

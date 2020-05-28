@@ -418,6 +418,21 @@ public class MQClientAPIImpl {
 
     }
 
+    /**
+     * 发送消息
+     * @param addr
+     * @param brokerName
+     * @param msg
+     * @param requestHeader
+     * @param timeoutMillis
+     * @param communicationMode
+     * @param context
+     * @param producer
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public SendResult sendMessage(
         final String addr,
         final String brokerName,
@@ -431,6 +446,25 @@ public class MQClientAPIImpl {
         return sendMessage(addr, brokerName, msg, requestHeader, timeoutMillis, communicationMode, null, null, null, 0, context, producer);
     }
 
+    /**
+     * 发送消息实现
+     * @param addr
+     * @param brokerName
+     * @param msg
+     * @param requestHeader
+     * @param timeoutMillis
+     * @param communicationMode
+     * @param sendCallback
+     * @param topicPublishInfo
+     * @param instance
+     * @param retryTimesWhenSendFailed
+     * @param context
+     * @param producer
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public SendResult sendMessage(
         final String addr,
         final String brokerName,
@@ -451,6 +485,7 @@ public class MQClientAPIImpl {
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG);
         if (isReply) {
             if (sendSmartMsg) {
+                //使用Version2这个版本的协议
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE_V2, requestHeaderV2);
             } else {
@@ -464,8 +499,9 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
             }
         }
+        //设置消息体
         request.setBody(msg.getBody());
-
+        //发送方式
         switch (communicationMode) {
             case ONEWAY:
                 this.remotingClient.invokeOneway(addr, request, timeoutMillis);
@@ -493,6 +529,18 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    /**
+     * 同步发送
+     * @param addr
+     * @param brokerName
+     * @param msg
+     * @param timeoutMillis
+     * @param request
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     private SendResult sendMessageSync(
         final String addr,
         final String brokerName,
@@ -500,11 +548,29 @@ public class MQClientAPIImpl {
         final long timeoutMillis,
         final RemotingCommand request
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //同步发送
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
         return this.processSendResponse(brokerName, msg, response);
     }
 
+    /**
+     * 异步发送消息
+     * @param addr
+     * @param brokerName
+     * @param msg
+     * @param timeoutMillis
+     * @param request
+     * @param sendCallback
+     * @param topicPublishInfo
+     * @param instance
+     * @param retryTimesWhenSendFailed
+     * @param times
+     * @param context
+     * @param producer
+     * @throws InterruptedException
+     * @throws RemotingException
+     */
     private void sendMessageAsync(
         final String addr,
         final String brokerName,
@@ -1371,6 +1437,15 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 获取对应Topic的路由信息(Broker信息)
+     * @param topic
+     * @param timeoutMillis
+     * @return
+     * @throws RemotingException
+     * @throws MQClientException
+     * @throws InterruptedException
+     */
     public TopicRouteData getDefaultTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis)
         throws RemotingException, MQClientException, InterruptedException {
 
@@ -1383,13 +1458,25 @@ public class MQClientAPIImpl {
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, true);
     }
 
+    /**
+     * 获取对应Topic的路由信息
+     * @param topic
+     * @param timeoutMillis
+     * @param allowTopicNotExist
+     * @return
+     * @throws MQClientException
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis,
         boolean allowTopicNotExist) throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
         requestHeader.setTopic(topic);
-
+        //构造同步路由的请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ROUTEINTO_BY_TOPIC, requestHeader);
-
+        //发送信息
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
         switch (response.getCode()) {

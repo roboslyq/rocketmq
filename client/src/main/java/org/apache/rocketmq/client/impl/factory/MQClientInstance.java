@@ -518,6 +518,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 更新MQ(Broker)信息
+     * @param topic
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic) {
         return updateTopicRouteInfoFromNameServer(topic, false, null);
     }
@@ -615,6 +620,13 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 更新MQ的Broker信息
+     * @param topic             对应主题
+     * @param isDefault         是否默认
+     * @param defaultMQProducer 默认生产者
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {

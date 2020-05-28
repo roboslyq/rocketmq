@@ -89,6 +89,12 @@ public class RemotingCommand {
     protected RemotingCommand() {
     }
 
+    /**
+     * 构造请求Request
+     * @param code                  详情见RequestCode类
+     * @param customHeader
+     * @return
+     */
     public static RemotingCommand createRequestCommand(int code, CommandCustomHeader customHeader) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.setCode(code);

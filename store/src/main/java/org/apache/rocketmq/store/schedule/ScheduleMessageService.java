@@ -45,6 +45,9 @@ import org.apache.rocketmq.store.PutMessageStatus;
 import org.apache.rocketmq.store.SelectMappedBufferResult;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+/**
+ * 延迟任务队列实现：通过保存到一个新的Topic "SCHEDULE_TOPIC_XXXX"中，然后定时将到时间点的任务重新提交到
+ */
 public class ScheduleMessageService extends ConfigManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 

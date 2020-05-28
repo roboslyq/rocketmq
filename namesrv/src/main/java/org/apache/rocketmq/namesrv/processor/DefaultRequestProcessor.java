@@ -102,7 +102,7 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
                 }
             case RequestCode.UNREGISTER_BROKER:
                 return this.unregisterBroker(ctx, request);
-            //获得topic及broker及offset的信息
+            //获得topic及broker及offset的信息(生产者生产消息/消费者消费消息前都需要发送此请求获取对应话题的Broker信息)
             case RequestCode.GET_ROUTEINTO_BY_TOPIC:
                 return this.getRouteInfoByTopic(ctx, request);
             case RequestCode.GET_BROKER_CLUSTER_INFO:
@@ -345,6 +345,13 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         return response;
     }
 
+    /**
+     * 获取路由信息
+     * @param ctx
+     * @param request
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand getRouteInfoByTopic(ChannelHandlerContext ctx,
         RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);

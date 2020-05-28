@@ -408,6 +408,16 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * 同步调用Broker(生产/消费 消息)
+     * @param channel
+     * @param request
+     * @param timeoutMillis
+     * @return
+     * @throws InterruptedException
+     * @throws RemotingSendRequestException
+     * @throws RemotingTimeoutException
+     */
     public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request,
         final long timeoutMillis)
         throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
@@ -433,7 +443,7 @@ public abstract class NettyRemotingAbstract {
                     log.warn("send a request command to channel <" + addr + "> failed.");
                 }
             });
-
+            //等待响应
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
             if (null == responseCommand) {
                 if (responseFuture.isSendRequestOK()) {
@@ -450,6 +460,17 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * 异步发送消息
+     * @param channel
+     * @param request
+     * @param timeoutMillis
+     * @param invokeCallback
+     * @throws InterruptedException
+     * @throws RemotingTooMuchRequestException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     */
     public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis,
         final InvokeCallback invokeCallback)
         throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
@@ -463,8 +484,8 @@ public abstract class NettyRemotingAbstract {
                 once.release();
                 throw new RemotingTimeoutException("invokeAsyncImpl call timeout");
             }
-
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis - costTime, invokeCallback, once);
+            //保存发送的Future到responseTable中
             this.responseTable.put(opaque, responseFuture);
             try {
                 channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
