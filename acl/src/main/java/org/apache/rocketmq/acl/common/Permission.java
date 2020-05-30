@@ -23,11 +23,25 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.acl.plain.PlainAccessResource;
 import org.apache.rocketmq.common.protocol.RequestCode;
 
+/**
+ * 权限定义
+ */
 public class Permission {
-
+    /**
+     * 拒绝
+     */
     public static final byte DENY = 1;
+    /**
+     * 所有权限：发送和订阅
+     */
     public static final byte ANY = 1 << 1;
+    /**
+     * 发送
+     */
     public static final byte PUB = 1 << 2;
+    /**
+     * 消费权限
+     */
     public static final byte SUB = 1 << 3;
 
     public static final Set<Integer> ADMIN_CODE = new HashSet<Integer>();
@@ -45,6 +59,12 @@ public class Permission {
         ADMIN_CODE.add(RequestCode.DELETE_SUBSCRIPTIONGROUP);
     }
 
+    /**
+     * 权限检查
+     * @param neededPerm
+     * @param ownedPerm
+     * @return
+     */
     public static boolean checkPermission(byte neededPerm, byte ownedPerm) {
         if ((ownedPerm & DENY) > 0) {
             return false;
@@ -55,6 +75,11 @@ public class Permission {
         return (neededPerm & ownedPerm) > 0;
     }
 
+    /**
+     * 将String转换成权限byte
+     * @param permString
+     * @return
+     */
     public static byte parsePermFromString(String permString) {
         if (permString == null) {
             return Permission.DENY;

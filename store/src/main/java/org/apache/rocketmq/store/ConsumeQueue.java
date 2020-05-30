@@ -26,24 +26,45 @@ import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
 /**
- * 待消费消息的队列：是CommitLog的一个索引，查找消息的时候会先ConsumerQueue获取offset，然后再去CommitLog拿消息
+ * 待消费消息的队列：是CommitLog的一个索引，查找消息的时候会先ConsumerQueue获取offset，然后再去CommitLog拿消息。
+ * 与CommitLog类似, 内部采用MappedFileQueue实现了消息位置文件队列功能。
+ * 1、一个topic和一个queueId对应一个ConsumeQueue.
+ * 2、 默认queue存储30W条消息, 每个消息大小为20个字节, 详细如下: offset(long 8字节) + size(int 4字节) + tagsCode(long 8字节)
  */
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     public static final int CQ_STORE_UNIT_SIZE = 20;
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
-
+    /**
+     * 默认的消息存储服务
+     */
     private final DefaultMessageStore defaultMessageStore;
-
+    /**
+     * 当前ConsumeQueue对应的mappedFileQueue
+     */
     private final MappedFileQueue mappedFileQueue;
+    /**
+     * 对应的主题
+     */
     private final String topic;
-    private final int queueId;  //队列id
+    /**
+     * 对应queueId
+     */
+    private final int queueId;
     private final ByteBuffer byteBufferIndex; // 写索引时用到的ByteBuffer
-
+    /**
+     * 文件存储路径
+     */
     private final String storePath;
+    /**
+     * 文件大小
+     */
     private final int mappedFileSize;
-    private long maxPhysicOffset = -1; // 最后一个消息对应的物理Offset
+    /**
+     *  最后一个消息对应的物理Offset
+     */
+    private long maxPhysicOffset = -1;
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
 
@@ -379,11 +400,16 @@ public class ConsumeQueue {
         return this.minLogicOffset / CQ_STORE_UNIT_SIZE;
     }
 
+    /**
+     * 通过dispatch，将commitLog中的消息写入consumeQueue中
+     * @param request
+     */
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
         final int maxRetries = 30;
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
         for (int i = 0; i < maxRetries && canWrite; i++) {
             long tagsCode = request.getTagsCode();
+            // consume queue ext可用，默认是false
             if (isExtWriteEnable()) {
                 ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
                 cqExtUnit.setFilterBitMap(request.getBitMap());
@@ -398,6 +424,7 @@ public class ConsumeQueue {
                         topic, queueId, request.getCommitLogOffset());
                 }
             }
+            //保存消息
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                 request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
@@ -425,6 +452,14 @@ public class ConsumeQueue {
         this.defaultMessageStore.getRunningFlags().makeLogicsQueueError();
     }
 
+    /**
+     * 将消息同步到consumeQueue中
+     * @param offset
+     * @param size
+     * @param tagsCode
+     * @param cqOffset
+     * @return
+     */
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
         final long cqOffset) {
 

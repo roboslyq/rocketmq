@@ -22,21 +22,25 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.rocketmq.acl.AccessResource;
 import org.apache.rocketmq.common.MixAll;
 
+/**
+ * 普通的权限访问资源
+ */
 public class PlainAccessResource implements AccessResource {
 
     // Identify the user
+    // Access Key 用户名/ID
     private String accessKey;
-
+    //Secret Key 密码
     private String secretKey;
-
+    //用户IP白名单:*;192.168.*.*;192.168.0.1
     private String whiteRemoteAddress;
-
+    //是否管理员账户: rocketMQ只有管理员和普通用户两种角色
     private boolean admin;
-
+    //默认的Topic权限 : DENY;PUB;SUB;PUB|SUB，详情见Permission
     private byte defaultTopicPerm = 1;
-
+    //默认的ConsumerGroup权限，详情见Permission
     private byte defaultGroupPerm = 1;
-
+    //资源权限
     private Map<String, Byte> resourcePermMap;
 
     private RemoteAddressStrategy remoteAddressStrategy;

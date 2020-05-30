@@ -31,27 +31,47 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 /**
  * MappedFileQueue
- *
+ * 顾名思义，就是由一系列MappedFile组成的队列。从而可以管理多个MappedFile。
+ * 无论是CommitLog(消息主体以及元数据), 还是ConsumeQueue(逻辑队列), 底层使用的组件都是MappedFileQueue.
  */
 public class MappedFileQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
-
+    /**
+     * 默认
+     */
     private static final int DELETE_FILES_BATCH_MAX = 10;
-
+    /**
+     * 文件队列存储的路径
+     */
     private final String storePath;
-
+    /**
+     *  mappedFile的大小
+     */
     private final int mappedFileSize;
-
+    /**
+     * 存储MappedFile的map
+     */
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
     private final AllocateMappedFileService allocateMappedFileService;
-
+    /**
+     * 已经刷盘的位置
+     */
     private long flushedWhere = 0;
+    /**
+     * 已经提交的位置
+     */
     private long committedWhere = 0;
 
     private volatile long storeTimestamp = 0;
 
+    /**
+     * 构造函数
+     * @param storePath
+     * @param mappedFileSize
+     * @param allocateMappedFileService
+     */
     public MappedFileQueue(final String storePath, int mappedFileSize,
         AllocateMappedFileService allocateMappedFileService) {
         this.storePath = storePath;
@@ -59,6 +79,9 @@ public class MappedFileQueue {
         this.allocateMappedFileService = allocateMappedFileService;
     }
 
+    /**
+     * 自检
+     */
     public void checkSelf() {
 
         if (!this.mappedFiles.isEmpty()) {
@@ -68,6 +91,8 @@ public class MappedFileQueue {
                 MappedFile cur = iterator.next();
 
                 if (pre != null) {
+                    //正常情况，cur的起始fromoffset减去pre的fromoffset应该等于pre的大小，然而，大小统一由mappedFileSize控制，如果不相等
+                    //则证明文件出现了问题
                     if (cur.getFileFromOffset() - pre.getFileFromOffset() != this.mappedFileSize) {
                         LOG_ERROR.error("[BUG]The mappedFile queue's data is damaged, the adjacent mappedFile's offset don't match. pre file {}, cur file {}",
                             pre.getFileName(), cur.getFileName());
@@ -467,9 +492,9 @@ public class MappedFileQueue {
 
     /**
      * Finds a mapped file by offset.
-     *
-     * @param offset Offset.
-     * @param returnFirstOnNotFound If the mapped file is not found, then return the first one.
+     * 根据offset/filesize计算该offset所在那个文件中
+     * @param offset Offset.        偏移量
+     * @param returnFirstOnNotFound If the mapped file is not found, then return the first one. 如果文件没有找到，是否返回第一个
      * @return Mapped file or null (when not found and returnFirstOnNotFound is <code>false</code>).
      */
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {

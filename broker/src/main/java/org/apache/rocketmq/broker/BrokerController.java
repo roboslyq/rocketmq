@@ -107,6 +107,9 @@ import org.apache.rocketmq.store.dledger.DLedgerCommitLog;
 import org.apache.rocketmq.store.stats.BrokerStats;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
+/**
+ * Broker的核心控制类
+ */
 public class BrokerController {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final InternalLogger LOG_PROTECTION = InternalLoggerFactory.getLogger(LoggerName.PROTECTION_LOGGER_NAME);
@@ -166,8 +169,18 @@ public class BrokerController {
     private TransactionalMessageService transactionalMessageService;
     private AbstractTransactionalMessageCheckListener transactionalMessageCheckListener;
     private Future<?> slaveSyncFuture;
+    /**
+     * ACL控制，已经实现的AccessValidator集合，AccessValidator可以自己扩展
+     */
     private Map<Class,AccessValidator> accessValidatorMap = new HashMap<Class, AccessValidator>();
 
+    /**
+     * 构造函数
+     * @param brokerConfig
+     * @param nettyServerConfig
+     * @param nettyClientConfig
+     * @param messageStoreConfig
+     */
     public BrokerController(
         final BrokerConfig brokerConfig,
         final NettyServerConfig nettyServerConfig,
@@ -231,6 +244,11 @@ public class BrokerController {
         return queryThreadPoolQueue;
     }
 
+    /**
+     * 初始化
+     * @return
+     * @throws CloneNotSupportedException
+     */
     public boolean initialize() throws CloneNotSupportedException {
         boolean result = this.topicConfigManager.load();
 
@@ -480,6 +498,7 @@ public class BrokerController {
                 }
             }
             initialTransaction();
+            /** 初始化Acl相关 */
             initialAcl();
             initialRpcHooks();
         }
@@ -501,29 +520,33 @@ public class BrokerController {
         this.transactionalMessageCheckService = new TransactionalMessageCheckService(this);
     }
 
+    /**
+     * 初始化Acl相关
+     */
     private void initialAcl() {
         if (!this.brokerConfig.isAclEnable()) {
             log.info("The broker dose not enable acl");
             return;
         }
-
+        //加载AccessValidator实现，使用原生SPI机制
         List<AccessValidator> accessValidators = ServiceProvider.load(ServiceProvider.ACL_VALIDATOR_ID, AccessValidator.class);
         if (accessValidators == null || accessValidators.isEmpty()) {
             log.info("The broker dose not load the AccessValidator");
             return;
         }
-
+        //循环处理已经存在的AccessValidator
         for (AccessValidator accessValidator: accessValidators) {
             final AccessValidator validator = accessValidator;
             accessValidatorMap.put(validator.getClass(),validator);
+            //注册到RPC调用的钩子函数中，代理模型实现
             this.registerServerRPCHook(new RPCHook() {
-
+                //前置拦截器
                 @Override
                 public void doBeforeRequest(String remoteAddr, RemotingCommand request) {
                     //Do not catch the exception
                     validator.validate(validator.parse(request, remoteAddr));
                 }
-
+                //后置拦截器
                 @Override
                 public void doAfterResponse(String remoteAddr, RemotingCommand request, RemotingCommand response) {
                 }
@@ -531,7 +554,9 @@ public class BrokerController {
         }
     }
 
-
+    /**
+     * 初始化RPC
+     */
     private void initialRpcHooks() {
 
         List<RPCHook> rpcHooks = ServiceProvider.load(ServiceProvider.RPC_HOOK_ID, RPCHook.class);

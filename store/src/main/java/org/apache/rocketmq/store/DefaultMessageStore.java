@@ -95,7 +95,9 @@ public class DefaultMessageStore implements MessageStore {
     private final IndexService indexService;
 
     private final AllocateMappedFileService allocateMappedFileService;
-
+    /**
+     * 将writeBuffer或者mappedFile中的数据写到consumerQueue中
+     */
     private final ReputMessageService reputMessageService;
     /**
      * 高可用
@@ -130,7 +132,11 @@ public class DefaultMessageStore implements MessageStore {
     private StoreCheckpoint storeCheckpoint;
 
     private AtomicLong printTimes = new AtomicLong(0);
-
+    /**
+     * 消息分发器，因为rocketMQ的消息模型，消息只是写入到writeBuffer或mappedFile中。而对应的
+     * index（索引）文件,commitLog(消息)文件以及consumeQueue(队列)是没有消息的，因此需要通过具体的CommitLogDispatcher将消息
+     * 从缓存写入到对应的文件或者队列中
+     */
     private final LinkedList<CommitLogDispatcher> dispatcherList;
 
     private RandomAccessFile lockFile;
@@ -139,6 +145,14 @@ public class DefaultMessageStore implements MessageStore {
 
     boolean shutDownNormal = false;
 
+    /**
+     * 构造函数
+     * @param messageStoreConfig
+     * @param brokerStatsManager
+     * @param messageArrivingListener
+     * @param brokerConfig
+     * @throws IOException
+     */
     public DefaultMessageStore(final MessageStoreConfig messageStoreConfig, final BrokerStatsManager brokerStatsManager,
         final MessageArrivingListener messageArrivingListener, final BrokerConfig brokerConfig) throws IOException {
         this.messageArrivingListener = messageArrivingListener;
@@ -163,6 +177,7 @@ public class DefaultMessageStore implements MessageStore {
         } else {
             this.haService = null;
         }
+        //重投消息服务(将消息从commitLog中投递到consumeQueue，以便消费者进行消费)
         this.reputMessageService = new ReputMessageService();
 
         this.scheduleMessageService = new ScheduleMessageService(this);
@@ -242,6 +257,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     /**
+     * MessageStore启动类
      * @throws Exception
      */
     public void start() throws Exception {
@@ -1586,6 +1602,10 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 将消息写入消费者队列中
+     * @param dispatchRequest
+     */
     public void putMessagePositionInfo(DispatchRequest dispatchRequest) {
         ConsumeQueue cq = this.findConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
         cq.putMessagePositionInfoWrapper(dispatchRequest);
@@ -1640,8 +1660,10 @@ public class DefaultMessageStore implements MessageStore {
         }, 6, TimeUnit.SECONDS);
     }
 
+    /**
+     * 将commotLog写到consumeQueue中，供消费者使用
+     */
     class CommitLogDispatcherBuildConsumeQueue implements CommitLogDispatcher {
-
         @Override
         public void dispatch(DispatchRequest request) {
             final int tranType = MessageSysFlag.getTransactionValue(request.getSysFlag());
@@ -1937,7 +1959,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     /**
-     * ReputMessageService，消息存储到commitLog后，MessageStore的接口调用就直接返回了，
+     * ReputMessageService，消息存储到commitLog后(包括writeBuffer和MappedFile)，MessageStore的接口调用就直接返回了，
      * 后续由ReputMessageService负责将消息分发到ConsumeQueue和IndexService。
      */
     class ReputMessageService extends ServiceThread {
@@ -1977,31 +1999,38 @@ public class DefaultMessageStore implements MessageStore {
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
+        /**
+         * 将消息从commitLog中写入到consumeQueue中
+         */
         private void doReput() {
+            //如果reputFrom的偏移量小于commitLog的最小偏移量，将将其调整为commitLog最小偏移量
             if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
                 log.warn("The reputFromOffset={} is smaller than minPyOffset={}, this usually indicate that the dispatch behind too much and the commitlog has expired.",
                     this.reputFromOffset, DefaultMessageStore.this.commitLog.getMinOffset());
                 this.reputFromOffset = DefaultMessageStore.this.commitLog.getMinOffset();
             }
+            //循环迁移消息
             for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
-
+                //将要迁移的offset大于commitLog已经确认的offset( confirmOffset)，表示没有消息需要迁移，直接终止
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable()
                     && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
                     break;
                 }
-
+                //获取消息
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
                         this.reputFromOffset = result.getStartOffset();
-
+                        //循环处理消息
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
+                            // 获取消息分发器，分别分发到index和consumeQueue中
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
 
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
+                                    //进行消息分发(比如index文件，commitlog文件，consumeQueue等)
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
@@ -2058,6 +2087,7 @@ public class DefaultMessageStore implements MessageStore {
             //一直循环刷将缓存刷consumeQueue和Index中
             while (!this.isStopped()) {
                 try {
+                    //延迟1ms，时间很短，故基本是实时的，延迟不会太高。
                     Thread.sleep(1);
                     this.doReput();
                 } catch (Exception e) {

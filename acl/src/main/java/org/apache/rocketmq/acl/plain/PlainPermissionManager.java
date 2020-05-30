@@ -39,6 +39,9 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.srvutil.FileWatchService;
 
+/**
+ * 权限管理器
+ */
 public class PlainPermissionManager {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
@@ -311,6 +314,11 @@ public class PlainPermissionManager {
         }
     }
 
+    /**
+     * 对每一个操作(requestCode)进行权限检查
+     * @param needCheckedAccess
+     * @param ownedAccess
+     */
     void checkPerm(PlainAccessResource needCheckedAccess, PlainAccessResource ownedAccess) {
         if (Permission.needAdminPerm(needCheckedAccess.getRequestCode()) && !ownedAccess.isAdmin()) {
             throw new AclException(String.format("Need admin permission for request code=%d, but accessKey=%s is not", needCheckedAccess.getRequestCode(), ownedAccess.getAccessKey()));
@@ -381,30 +389,37 @@ public class PlainPermissionManager {
         return plainAccessResource;
     }
 
+    /**
+     * acl校验
+     * @param plainAccessResource
+     */
     public void validate(PlainAccessResource plainAccessResource) {
 
         // Check the global white remote addr
+        // 全局IP白名单检查,如果不匹配则抛出异常
         for (RemoteAddressStrategy remoteAddressStrategy : globalWhiteRemoteAddressStrategy) {
             if (remoteAddressStrategy.match(plainAccessResource)) {
                 return;
             }
         }
-
+        //如果用户为空
         if (plainAccessResource.getAccessKey() == null) {
             throw new AclException(String.format("No accessKey is configured"));
         }
-
+        //服务器端是否有配置当前用户
         if (!plainAccessResourceMap.containsKey(plainAccessResource.getAccessKey())) {
             throw new AclException(String.format("No acl config for %s", plainAccessResource.getAccessKey()));
         }
 
         // Check the white addr for accesskey
+        // 检查指定用户的白名单地址
         PlainAccessResource ownedAccess = plainAccessResourceMap.get(plainAccessResource.getAccessKey());
         if (ownedAccess.getRemoteAddressStrategy().match(plainAccessResource)) {
             return;
         }
 
         // Check the signature
+        //检查密码
         String signature = AclUtils.calSignature(plainAccessResource.getContent(), ownedAccess.getSecretKey());
         if (!signature.equals(plainAccessResource.getSignature())) {
             throw new AclException(String.format("Check signature failed for accessKey=%s", plainAccessResource.getAccessKey()));

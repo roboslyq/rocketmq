@@ -40,8 +40,13 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 import static org.apache.rocketmq.acl.plain.PlainAccessResource.getRetryTopic;
 
+/**
+ * 默认权限校验器实现
+ */
 public class PlainAccessValidator implements AccessValidator {
-
+    /**
+     * 具体的权限校验管理器
+     */
     private PlainPermissionManager aclPlugEngine;
 
     public PlainAccessValidator() {

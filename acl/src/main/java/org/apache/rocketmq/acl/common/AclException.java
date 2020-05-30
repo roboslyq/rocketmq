@@ -16,6 +16,9 @@
  */
 package org.apache.rocketmq.acl.common;
 
+/**
+ * ACL异常定义
+ */
 public class AclException extends RuntimeException {
     private static final long serialVersionUID = -7256002576788700354L;
 

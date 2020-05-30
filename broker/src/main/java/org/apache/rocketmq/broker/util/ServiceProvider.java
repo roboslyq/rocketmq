@@ -18,6 +18,9 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 工具类：MQ的扩展点实现
+ */
 public class ServiceProvider {
 
     private final static Logger LOG = LoggerFactory
@@ -37,7 +40,9 @@ public class ServiceProvider {
 
     public static final String RPC_HOOK_ID = "META-INF/service/org.apache.rocketmq.remoting.RPCHook";
 
-
+    /**
+     * ACL控制
+     */
     public static final String ACL_VALIDATOR_ID = "META-INF/service/org.apache.rocketmq.acl.AccessValidator";
 
 
@@ -94,6 +99,13 @@ public class ServiceProvider {
         }
     }
 
+    /**
+     * 扩展点加载
+     * @param name
+     * @param clazz
+     * @param <T>
+     * @return
+     */
     public static <T> List<T> load(String name, Class<?> clazz) {
         LOG.info("Looking for a resource file of name [{}] ...", name);
         List<T> services = new ArrayList<T>();

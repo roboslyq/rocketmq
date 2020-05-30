@@ -58,9 +58,9 @@ public class CommitLog {
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     // End of file empty MAGIC CODE cbd43194
     protected final static int BLANK_MAGIC_CODE = -875286124;
-    /** MappedFile队列 */
+    /** MappedFile队列  */
     protected final MappedFileQueue mappedFileQueue;
-    /** 消息存储器 */
+    /** 消息存储器     */
     protected final DefaultMessageStore defaultMessageStore;
     /* 刷盘定时任务
     * 什么时候写到writerBuffer,什么时候写到mappedByteBuffer呢？
@@ -81,6 +81,9 @@ public class CommitLog {
     private final AppendMessageCallback appendMessageCallback;
     /** 主题队列 */
     private final ThreadLocal<MessageExtBatchEncoder> batchEncoderThreadLocal;
+    /**
+     * 用于记录某个topic在某个queueId共写入了多少个消息, put一个消息加1.
+     */
     protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
     protected volatile long confirmOffset = -1L;
 
@@ -169,6 +172,7 @@ public class CommitLog {
 
     /**
      * Read CommitLog data, use data replication
+     * 根据偏移量起始位置，获取偏移量后面的所有消息
      */
     public SelectMappedBufferResult getData(final long offset) {
         return this.getData(offset, offset == 0);
@@ -808,7 +812,7 @@ public class CommitLog {
     }
 
     /**
-     * CommitLog存储消息
+     * =======>CommitLog存储消息
      * @param msg
      * @return
      */
@@ -862,7 +866,10 @@ public class CommitLog {
         long elapsedTimeInLock = 0;
         // 获取写入映射文件
         MappedFile unlockMappedFile = null;
-        // queue中最后一个MappedFile就是当前能写的MappedFiled
+        /**
+         * 第1步： 查找文件
+         *        从queue中最后一个MappedFile就是当前能写的MappedFiled
+         */
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
         // 获取写入锁：默认使用PutMessageSpinLock，保证写文件串行
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
@@ -883,7 +890,9 @@ public class CommitLog {
                 beginTimeInLock = 0;
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
             }
-            // mappedFile写文件：将消息写入到文件中(缓冲区，具体刷盘在后面同步或者异步调用)
+            /**
+             * 第2步： mappedFile写文件：将消息写入到文件中(缓冲区，具体刷盘在后面同步或者异步调用)
+             */
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
             switch (result.getStatus()) {
                 case PUT_OK://写成功，不做处理
@@ -899,9 +908,7 @@ public class CommitLog {
                         beginTimeInLock = 0;
                         return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, result);
                     }
-                    /**
-                     * 将消息写入mappedFile中（写Pagecache缓存）
-                     */
+                    // 失败重试：将消息写入mappedFile中（写Pagecache缓存）
                     result = mappedFile.appendMessage(msg, this.appendMessageCallback);
                     break;
                 case MESSAGE_SIZE_EXCEEDED:
@@ -937,7 +944,7 @@ public class CommitLog {
         storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
         storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
         /**
-         * 行同步||异步 flush||commit：将缓存中的信息刷入到磁盘中
+         * 第3步： 行同步||异步 flush||commit：将缓存中的信息刷入到磁盘中
          */
         handleDiskFlush(result, putMessageResult, msg);
         /**

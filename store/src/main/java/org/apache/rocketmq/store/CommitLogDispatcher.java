@@ -19,6 +19,9 @@ package org.apache.rocketmq.store;
 
 /**
  * Dispatcher of commit log.
+ * 对commit消息进行分发,默认实现均在DefaultMessageStore内部类：
+ * CommitLogDispatcherBuildConsumeQueue ：实现消费者写
+ * CommitLogDispatcherBuildIndex : 实现索引写
  */
 public interface CommitLogDispatcher {
 

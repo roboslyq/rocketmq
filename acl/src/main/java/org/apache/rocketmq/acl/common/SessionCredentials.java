@@ -22,11 +22,18 @@ import java.nio.charset.Charset;
 import java.util.Properties;
 import org.apache.rocketmq.common.MixAll;
 
+/**
+ * session凭据
+ */
 public class SessionCredentials {
     public static final Charset CHARSET = Charset.forName("UTF-8");
+    //用户名
     public static final String ACCESS_KEY = "AccessKey";
+    //用户密码
     public static final String SECRET_KEY = "SecretKey";
+    //签名
     public static final String SIGNATURE = "Signature";
+    //TODO: 安全TOKE
     public static final String SECURITY_TOKEN = "SecurityToken";
 
     public static final String KEY_FILE = System.getProperty("rocketmq.client.keyFile",
@@ -37,6 +44,9 @@ public class SessionCredentials {
     private String securityToken;
     private String signature;
 
+    /**
+     * 构造函数
+     */
     public SessionCredentials() {
         String keyContent = null;
         try {

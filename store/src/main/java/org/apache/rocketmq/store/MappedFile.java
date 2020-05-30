@@ -42,10 +42,14 @@ import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
 /**
- * 文件内存映射对象层
+ * RocketMQ中文件内存映射对象层，是对MappedByteBuffer的封装, 具有创建文件（使用非堆区内存）,
+ * 写入, 提交, 读取, 释放, 关闭等功能, RocketMQ使用该类实现数据从内存到磁盘的持久化。
  * 1、MappedFileQueue、MappedFile、MappedByteBuffer
  * 2、MappedFile对应着磁盘上的存储文件，同时也是MappedByteBuffer的封装，消息存储跟磁盘、内存的交互。
  * 3、每个MappedFile大小是1G（1G=20124*1024*1024）。
+ * 4、RocketMQ提供两种数据落盘的方式:
+ *      一种是直接将数据写到映射文件字节缓冲区(mappedByteBuffer), 映射文件字节缓冲区(mappedByteBuffer)flush;
+ *      另一种是先写到writeBuffer, 再从内存字节缓冲区(write buffer)提交(commit)到文件通道(fileChannel), 然后文件通道(fileChannel)flush.
  */
 public class MappedFile extends ReferenceResource {
     // 默认页大小
@@ -57,14 +61,14 @@ public class MappedFile extends ReferenceResource {
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
     // 当前写文件位置
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
-    // 提交位置
+    // 已经提交(已经持久化到磁盘)的位置.-->针对writeBuffer
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
-    // 刷盘位置
+    // 已经提交(已经持久化到磁盘)的位置.-->针对mappedByteBuffer
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
     // 文件大小
     protected int fileSize;
     /**
-     * 文件channel,会将消息写入此文件中
+     * 对应的文件通道,会将消息写入此文件中
      */
     protected FileChannel fileChannel;
     /**
@@ -74,8 +78,11 @@ public class MappedFile extends ReferenceResource {
     protected ByteBuffer writeBuffer = null;
     // 暂存池
     protected TransientStorePool transientStorePool = null;
+    // 文件名称
     private String fileName;
-    // 映射起始偏移量
+    // 映射起始偏移量：映射的起始偏移量, 以commitlog文件为例, 当存在多个文件(假设为1KB, 默认是1G大小)时,
+    // 第一个文件名为00000000000000000000, 第二个文件名为00000000000000001024, 那么第一个文件的fileFromOffset就是0,
+    // 第二个文件的fileFromOffset就是1024
     private long fileFromOffset;
     // 映射文件(原始文件,对应磁盘中的一个具体File)
     private File file;
@@ -83,6 +90,7 @@ public class MappedFile extends ReferenceResource {
     private MappedByteBuffer mappedByteBuffer;
     // 最后一条消息保存时间
     private volatile long storeTimestamp = 0;
+
     private boolean firstCreateInQueue = false;
 
     public MappedFile() {
@@ -292,12 +300,20 @@ public class MappedFile extends ReferenceResource {
         return this.fileFromOffset;
     }
 
+    /**
+     * 在mappedFile中追加消息
+     * @param data
+     * @return
+     */
     public boolean appendMessage(final byte[] data) {
         int currentPos = this.wrotePosition.get();
 
         if ((currentPos + data.length) <= this.fileSize) {
             try {
+                //写入文件中
+                //先定位文件可写位置
                 this.fileChannel.position(currentPos);
+                //将消息字节码写入文件中
                 this.fileChannel.write(ByteBuffer.wrap(data));
             } catch (Throwable e) {
                 log.error("Error occurred when append message to mappedFile.", e);
