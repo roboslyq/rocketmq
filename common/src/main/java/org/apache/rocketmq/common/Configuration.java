@@ -91,7 +91,7 @@ public class Configuration {
 
     /**
      * register config properties
-     *
+     * 启动时，将启动配置保存到allConfigs属性中
      * @return the current Configuration object
      */
     public Configuration registerConfig(Properties extProperties) {

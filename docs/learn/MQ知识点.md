@@ -1,6 +1,6 @@
 # DLedger
 
-一款基于Raft协议的Commitlog 存储 Library
+主从复制，多副本实现。一款基于Raft协议的Commitlog 存储 Library
 
 > https://github.com/openmessaging/openmessaging-storage-dledger
 

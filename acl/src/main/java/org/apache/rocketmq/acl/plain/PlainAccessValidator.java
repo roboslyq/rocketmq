@@ -53,24 +53,34 @@ public class PlainAccessValidator implements AccessValidator {
         aclPlugEngine = new PlainPermissionManager();
     }
 
+    /**
+     * 从请求RemotingCommand中，解析出对应的AccessResouce,以便做ACL检查
+     * @param request
+     * @param remoteAddr
+     * @return
+     */
     @Override
     public AccessResource parse(RemotingCommand request, String remoteAddr) {
         PlainAccessResource accessResource = new PlainAccessResource();
+        //去掉端口号xxx.xxx.xxx.xxx:port  去掉:port
         if (remoteAddr != null && remoteAddr.contains(":")) {
             accessResource.setWhiteRemoteAddress(remoteAddr.substring(0, remoteAddr.lastIndexOf(':')));
         } else {
             accessResource.setWhiteRemoteAddress(remoteAddr);
         }
-
+        //设置请求交易码(即交易类型，对应着资源)
         accessResource.setRequestCode(request.getCode());
-
+        //如果没有扩展域，则直接返回，因此ACL相关字段应该是放在扩展域中的
         if (request.getExtFields() == null) {
             // If request's extFields is null,then return accessResource directly(users can use whiteAddress pattern)
             // The following logic codes depend on the request's extFields not to be null.
             return accessResource;
         }
+        //从扩展域中获取用户名
         accessResource.setAccessKey(request.getExtFields().get(SessionCredentials.ACCESS_KEY));
+        //TODO 从扩展哉中获取签名
         accessResource.setSignature(request.getExtFields().get(SessionCredentials.SIGNATURE));
+        //TODO
         accessResource.setSecretToken(request.getExtFields().get(SessionCredentials.SECURITY_TOKEN));
 
         try {

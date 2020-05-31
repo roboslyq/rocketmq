@@ -53,6 +53,8 @@ import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 
 /**
  * Store all metadata downtime for recovery, data protection reliability
+ * DLedgerCommitlog 继承自 Commitlog。
+ * 主要是增加了主人复制多副本的一些特性。
  */
 public class DLedgerCommitLog extends CommitLog {
     private final DLedgerServer dLedgerServer;

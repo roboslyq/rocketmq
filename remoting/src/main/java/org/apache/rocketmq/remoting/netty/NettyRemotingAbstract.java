@@ -166,6 +166,11 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * r
+     * @param addr
+     * @param request
+     */
     protected void doBeforeRpcHooks(String addr, RemotingCommand request) {
         if (rpcHooks.size() > 0) {
             for (RPCHook rpcHook: rpcHooks) {

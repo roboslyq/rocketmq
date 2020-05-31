@@ -249,7 +249,106 @@ rocketmq.config.namesrvAddr=localhost:9876
 
 至此，整个运行环境基本搭建完成！！！
 
+# 编译RocketMQ
 
+如果自己修改了Rocket的源码然后想重新打包，怎么办？
 
+>  前提：RocketMQ对应的打包在`distribution`模块中
 
+## mvn clean install
+
+> D:\IdeaProjects\rocketmq>mvn -Prelease-all -Dmaven.test.skip=true -Dcheckstyle.skip=true clean install
+
+- mvn : maven命令
+
+- -Prelease-all：表示激活相应的配置，配置项为release-all。具体配置(dstribution/pom.xml)如下：
+
+  ```xml
+  <profile>
+              <id>release-all</id>
+              <dependencies>
+                  <dependency>
+                      <groupId>org.apache.rocketmq</groupId>
+                      <artifactId>rocketmq-broker</artifactId>
+                  </dependency>
+                  <dependency>
+                      <groupId>org.apache.rocketmq</groupId>
+                      <artifactId>rocketmq-client</artifactId>
+                  </dependency>
+                  <dependency>
+                      <groupId>org.apache.rocketmq</groupId>
+                      <artifactId>rocketmq-tools</artifactId>
+                  </dependency>
+                  <dependency>
+                      <groupId>org.apache.rocketmq</groupId>
+                      <artifactId>rocketmq-example</artifactId>
+                  </dependency>
+              </dependencies>
+  
+              <build>
+                  <plugins>
+                      <plugin>
+                          <artifactId>maven-assembly-plugin</artifactId>
+                          <executions>
+                              <execution>
+                                  <id>release-all</id>
+                                  <goals>
+                                      <goal>single</goal>
+                                  </goals>
+                                  <phase>package</phase>
+                                  <configuration>
+                                      <descriptors>
+                                          <descriptor>release.xml</descriptor>
+                                      </descriptors>
+                                      <appendAssemblyId>false</appendAssemblyId>
+                                  </configuration>
+                              </execution>
+                          </executions>
+                      </plugin>
+                  </plugins>
+                  <finalName>rocketmq-${project.version}</finalName>
+              </build>
+          </profile>
+  ```
+
+  
+
+-  -Dmaven.test.skip=true
+
+  - 表示跳过Test，不进行单元测试
+
+-  -Dcheckstyle.skip=true 
+
+  - 表示不进行编译风格检查，否则如果一旦修改不符合相应的编码规范，会导致编码失败。
+
+-  clean
+
+  - 清理上一次编译的结果
+
+- install
+  - 打包安装
+
+## 结果文件
+
+![20](./images/01/20.jpg)
+
+rocketmq-4.7.0.tar.gz为linux下压缩包，rocketmq-4.7.0.zip为windows下压缩包。
+
+## windows安装
+
+1、将rocketmq-4.7.0.zip解压
+
+![21](./images/01/21.png)
+
+2、配置ROCKETMQ_HOME环境变量
+
+![22](./images/01/22.jpg)
+
+3、启动namesrv
+
+![23](./images/01/23.png)
+
+5、启动broker
+
+![24](./images/01/24.png)
 
