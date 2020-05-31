@@ -23,7 +23,7 @@ import java.util.Properties;
 import org.apache.rocketmq.common.MixAll;
 
 /**
- * session凭据
+ * session凭据:  即用户信息，可以理解为USER，主要包含用户名和密码。
  */
 public class SessionCredentials {
     public static final Charset CHARSET = Charset.forName("UTF-8");

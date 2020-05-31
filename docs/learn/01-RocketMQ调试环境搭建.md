@@ -326,6 +326,7 @@ rocketmq.config.namesrvAddr=localhost:9876
   - 清理上一次编译的结果
 
 - install
+  
   - 打包安装
 
 ## 结果文件
@@ -352,3 +353,52 @@ rocketmq-4.7.0.tar.gz为linux下压缩包，rocketmq-4.7.0.zip为windows下压�
 
 ![24](./images/01/24.png)
 
+> 上面的mqbroker.cmd启动对应如下命令：
+>
+> D:\javasoft\jdk1.8.0_111\bin\java.exe   -server -Xms2g -Xmx2g -Xmn1g -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=320m -XX:+UseConcMarkSweepGC -XX:+UseCMSCompactAtFullCollection -XX:CMSInitiatingOccupancyFraction=70 -XX:+CMSParallelRemarkEnabled -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+CMSClassUnloadingEnabled -XX:SurvivorRatio=8 -XX:-UseParNewGC -verbose:gc -Xloggc:"C:\Users\robos\rmq_srv_gc.log" -XX:+PrintGCDetails -XX:-OmitStackTraceInFastThrow -XX:-UseLargePages -Djava.ext.dirs=D:\javasoft\rocketmq-4.7.0\lib -cp ".;D:\javasoft\rocketmq-4.7.0\conf;.:$JAVA_HOME\lib\dt.jar:$JAVA_HOME\lib\tools.jar" org.apache.rocketmq.namesrv.NamesrvStartup
+
+上述命令格式化后：
+
+>java
+>
+>-server
+>
+> -Xms2g 
+>
+>-Xmx2g 
+>
+>-Xmn1g 
+>
+>-XX:MetaspaceSize=128m 
+>
+>-XX:MaxMetaspaceSize=320m 
+>
+>-XX:+UseConcMarkSweepGC 
+>
+>-XX:+UseCMSCompactAtFullCollection 
+>
+>-XX:CMSInitiatingOccupancyFraction=70 
+>
+>-XX:+CMSParallelRemarkEnabled 
+>
+>-XX:SoftRefLRUPolicyMSPerMB=0 
+>
+>-XX:+CMSClassUnloadingEnabled 
+>
+>-XX:SurvivorRatio=8 
+>
+>-XX:-UseParNewGC 
+>
+>-verbose:gc 
+>
+>-Xloggc:"C:\Users\robos\rmq_srv_gc.log" 
+>
+>-XX:+PrintGCDetails 
+>
+>-XX:-OmitStackTraceInFastThrow 
+>
+>-XX:-UseLargePages 
+>
+>-Djava.ext.dirs=D:\javasoft\rocketmq-4.7.0\lib 
+>
+>-cp ".;D:\javasoft\rocketmq-4.7.0\conf;.:\$JAVA_HOME\lib\dt.jar:$JAVA_HOME\lib\tools.jar" 

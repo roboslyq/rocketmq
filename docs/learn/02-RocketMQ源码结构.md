@@ -79,14 +79,138 @@ RocketMQ架构上主要分为四部分，如上图所示:
 | common          | 通用的工具包                                                 |
 | distribution    | 部署实例相关文件（非源码）,因此相关的配置文件均在这里。所以源码调试启动时，需要打比赛home路径到这个目录之下。 |
 | example         | Demo示例                                                     |
-| filter          | 消息过滤器server。                                           |
-| logappender     | 日志实现相关类                                               |
-| logging         | TODO                                                         |
+| filter          | 消息过滤器模块。对生产者几乎没有影响，主要是消费都可以通过filter过滤掉自己不需要关心的消息。 |
+| logappender     | 日志组件Appender扩展。主要是针对logback.xml,log4j.xml等配置文件中的Appender配置。目前支持3种：log4j、log4j2、logback。 |
+| logging         | 日志实现相关类,供其它模块使用                                |
 | <B>namesrv</B>  | 注册中心（namesrv启动进程）                                  |
-| openmessageing  | 消息开放标准（由阿里提出，目前还在发展中。因为MQ产品太多了，所以需要一个规范化的标准） |
+| openmessageing  | 消息开放标准（由阿里提出，目前还在发展中。因为MQ产品太多了，所以需要一个规范化的标准来统一不同MQ之前的交互） |
 | <B>remoting</B> | 网络模块，对远程调用的封装(底层是netty)。使用FastJSON做序列化，自定义二进制协议 |
 | srvutil         | namesrv的工具包。只有一个包`org.apache.rocketmq.srvutil`     |
 | <B>store</B>    | 存储实现: 消息存储，索引存储，commitLog存储。                |
-| tools           | 命令行工具                                                   |
+| tools           | 命令行工具，对主题的维护，对消息的发送消费等                 |
 | dev             | 开发者信息（非源码）                                         |
+
+**acl**使用
+
+- broker开启acl
+
+  - broker.conf中添加配置：aclEnable=true
+
+  - 修改配置plain_acl.yml
+
+    - ```yaml
+      globalWhiteRemoteAddresses:
+      - 10.10.103.*
+      - 192.168.0.*
+      
+      accounts:
+      - accessKey: RocketMQ
+        secretKey: 12345678
+        whiteRemoteAddress:
+        admin: false
+        defaultTopicPerm: DENY
+        defaultGroupPerm: SUB
+        topicPerms:
+        - topicA=DENY
+        - topicB=PUB|SUB
+        - topicC=SUB
+        - LUOYQ_TEST1=PUB|SUB
+        groupPerms:
+        # the group should convert to retry topic
+        - groupA=DENY
+        - groupB=PUB|SUB
+        - groupC=SUB
+        - Test_Group=PUB|SUB
+      
+      - accessKey: rocketmq2
+        secretKey: 12345678
+        whiteRemoteAddress: 192.168.1.*
+        # if it is admin, it could access all resources
+        admin: true
+          
+      ```
+
+- 生产者使用acl（通过RpcHook模式）
+
+  - 通过RpcHook，在生产者生产消息之前 ，将对应的acl信息存入到ext信息中进行保存。然后broker从ext中提取出对应的acl信息，进而进行校验 。
+
+  - ```java
+    public static void producer() throws MQClientException {
+        DefaultMQProducer producer = new DefaultMQProducer("Test_Group", getAclRPCHook());
+        producer.setNamesrvAddr("127.0.0.1:9876");
+        producer.start();
+    
+        for (int i = 0; i < 128; i++)
+            try {
+                {
+                    Message msg = new Message("LUOYQ_TEST1",
+                        "TagA",
+                        "OrderID188",
+                        "Hello world".getBytes(RemotingHelper.DEFAULT_CHARSET));
+                    SendResult sendResult = producer.send(msg);
+                    System.out.printf("%s%n", sendResult);
+                }
+    
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+    
+        producer.shutdown();
+    }
+    // AclClientRPCHook是acl模块中的一个类，供用户使用
+        static RPCHook getAclRPCHook() {
+            return new AclClientRPCHook(new SessionCredentials(ACL_ACCESS_KEY,ACL_SECRET_KEY));
+        }
+    
+    
+    ```
+
+**filter**使用
+
+```java
+public class SqlFilterConsumer {
+
+    public static void main(String[] args) throws Exception {
+        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("please_rename_unique_group_name");
+        consumer.setNamesrvAddr( "localhost:9876" );
+        // Don't forget to set enablePropertyFilter=true in broker
+        // 记得，不要忘记在broker中的enablePropertyFilter参数设置为true。
+        consumer.subscribe("SqlFilterTest",
+            MessageSelector.bySql("(TAGS is not null and TAGS in ('TagA', 'TagB'))" +
+                "and (a is not null and a between 0 and 3)"));
+
+        consumer.registerMessageListener( (MessageListenerConcurrently) (msgs, context) -> {
+            System.out.printf("%s Receive New Messages: %s %n", Thread.currentThread().getName(), msgs);
+            return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+        } );
+
+        consumer.start();
+        System.out.printf("Consumer Started.%n");
+    }
+}
+```
+
+> 注意上述代码中的` MessageSelector.bySql("(TAGS is not null and TAGS in ('TagA', 'TagB'))"                 "and (a is not null and a between 0 and 3)")`这一段代码 ，即可以达到过滤效果。
+
+
+
+**logappender**使用，以log4j.xml配置为例：
+
+> ```xml
+> <appender name="mqAppender1" class="org.apache.rocketmq.logappender.log4j.RocketmqLog4jAppender">
+>     <param name="Tag" value="yourTag" />
+>     <param name="Topic" value="yourLogTopic" />
+>     <param name="ProducerGroup" value="yourLogGroup" />
+>     <param name="NameServerAddress" value="yourRocketmqNameserverAddress"/>
+>     <layout class="org.apache.log4j.PatternLayout">
+>         <param name="ConversionPattern" value="%d{yyyy-MM-dd HH:mm:ss}-%p %t %c - %m%n" />
+>     </layout>
+> </appender>
+> 
+> <appender name="mqAsyncAppender1" class="org.apache.log4j.AsyncAppender">
+>     <param name="BufferSize" value="1024" />
+>     <param name="Blocking" value="false" />
+>     <appender-ref ref="mqAppender1"/>
+> </appender>
+> ```
 

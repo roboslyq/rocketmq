@@ -153,7 +153,9 @@ public class BrokerConfig {
     private long filterDataCleanTimeSpan = 24 * 3600 * 1000;
 
     // whether do filter when retry.
+    // 重试时是否需要过滤(因为是重试，所以第一次已经通过过滤器了，所以重试时可以关闭过滤器)
     private boolean filterSupportRetry = false;
+    /** 是否开启属性过滤器(比如Sql过滤时就需要打开此条件)*/
     private boolean enablePropertyFilter = false;
 
     private boolean compressedRegister = false;

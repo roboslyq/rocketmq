@@ -28,11 +28,13 @@ accounts:
   - topicA=DENY
   - topicB=PUB|SUB
   - topicC=SUB
+  - LUOYQ_TEST1=PUB|SUB
   groupPerms:
   # the group should convert to retry topic
   - groupA=DENY
   - groupB=PUB|SUB
   - groupC=SUB
+  - Test_Group=PUB|SUB
 
 - accessKey: rocketmq2
   secretKey: 12345678

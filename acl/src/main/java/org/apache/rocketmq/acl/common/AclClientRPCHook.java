@@ -29,10 +29,13 @@ import static org.apache.rocketmq.acl.common.SessionCredentials.SECURITY_TOKEN;
 import static org.apache.rocketmq.acl.common.SessionCredentials.SIGNATURE;
 
 /**
- * ACL钩子函数
+ * ACL钩子函数。使用方式如下：
+ *   DefaultMQProducer producer = new DefaultMQProducer("Test_Group", new AclClientRPCHook(new SessionCredentials(ACL_ACCESS_KEY,ACL_SECRET_KEY));
+ * 即通过钩子函数将AlcLientRPCHook通过构造函数的参数传入到Producer中。
  */
 public class AclClientRPCHook implements RPCHook {
     private final SessionCredentials sessionCredentials;
+    /** 缓存对应的CommandCustomHeader的field,提高反射效率*/
     protected ConcurrentHashMap<Class<? extends CommandCustomHeader>, Field[]> fieldCache =
         new ConcurrentHashMap<Class<? extends CommandCustomHeader>, Field[]>();
 
@@ -40,15 +43,25 @@ public class AclClientRPCHook implements RPCHook {
         this.sessionCredentials = sessionCredentials;
     }
 
+    /**
+     * RPC调用前，对ACL进行处理，即添加额外的参数
+     * @param remoteAddr
+     * @param request
+     */
     @Override
     public void doBeforeRequest(String remoteAddr, RemotingCommand request) {
+        /** 将消息转换成字节码 */
         byte[] total = AclUtils.combineRequestContent(request,
             parseRequestContent(request, sessionCredentials.getAccessKey(), sessionCredentials.getSecurityToken()));
+        // 对字节码进行签名
         String signature = AclUtils.calSignature(total, sessionCredentials.getSecretKey());
+        //添加扩展字段：SIGNATURE，即签名的结果
         request.addExtField(SIGNATURE, signature);
+        //添加用户名扩展字段
         request.addExtField(ACCESS_KEY, sessionCredentials.getAccessKey());
         
         // The SecurityToken value is unneccessary,user can choose this one.
+        // 添加密码字段
         if (sessionCredentials.getSecurityToken() != null) {
             request.addExtField(SECURITY_TOKEN, sessionCredentials.getSecurityToken());
         }
@@ -59,6 +72,13 @@ public class AclClientRPCHook implements RPCHook {
 
     }
 
+    /**
+     * 解析RemotingCommand内容，转换成一个有序的map，因为签名结果与顺序有关。
+     * @param request
+     * @param ak
+     * @param securityToken
+     * @return
+     */
     protected SortedMap<String, String> parseRequestContent(RemotingCommand request, String ak, String securityToken) {
         CommandCustomHeader header = request.readCustomHeader();
         // Sort property
@@ -70,18 +90,21 @@ public class AclClientRPCHook implements RPCHook {
         try {
             // Add header properties
             if (null != header) {
+                //从缓存中获取
                 Field[] fields = fieldCache.get(header.getClass());
+                //如果缓存中为空，则进行初始化
                 if (null == fields) {
                     fields = header.getClass().getDeclaredFields();
                     for (Field field : fields) {
                         field.setAccessible(true);
                     }
+                    //获取对应的field
                     Field[] tmp = fieldCache.putIfAbsent(header.getClass(), fields);
                     if (null != tmp) {
                         fields = tmp;
                     }
                 }
-
+                //循环遍列field，取对应的值放到map中
                 for (Field field : fields) {
                     Object value = field.get(header);
                     if (null != value && !field.isSynthetic()) {
@@ -95,6 +118,10 @@ public class AclClientRPCHook implements RPCHook {
         }
     }
 
+    /**
+     * 获取用户信息
+     * @return
+     */
     public SessionCredentials getSessionCredentials() {
         return sessionCredentials;
     }
