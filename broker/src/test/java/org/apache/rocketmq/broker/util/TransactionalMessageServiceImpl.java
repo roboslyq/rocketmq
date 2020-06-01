@@ -29,6 +29,9 @@ import org.apache.rocketmq.store.PutMessageResult;
 
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * 事务消息默认实现，SPI机制
+ */
 public class TransactionalMessageServiceImpl implements TransactionalMessageService {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 

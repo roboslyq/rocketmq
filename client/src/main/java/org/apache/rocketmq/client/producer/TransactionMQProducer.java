@@ -22,14 +22,20 @@ import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.protocol.NamespaceUtil;
 import org.apache.rocketmq.remoting.RPCHook;
 
+/**
+ * 事务消息生产者：继承于普通的消息生产者DefaultMQProducer
+ */
 public class TransactionMQProducer extends DefaultMQProducer {
+    // 事件监听器
     private TransactionCheckListener transactionCheckListener;
+    // 线程池minSize
     private int checkThreadPoolMinSize = 1;
+    // 线程池MaxSize
     private int checkThreadPoolMaxSize = 1;
     private int checkRequestHoldMax = 2000;
-
+    // 线池池
     private ExecutorService executorService;
-
+    // 新的事件监听顺，替代TransactionCheckListener
     private TransactionListener transactionListener;
 
     public TransactionMQProducer() {
@@ -51,6 +57,10 @@ public class TransactionMQProducer extends DefaultMQProducer {
         super(namespace, producerGroup, rpcHook);
     }
 
+    /**
+     * 启动
+     * @throws MQClientException
+     */
     @Override
     public void start() throws MQClientException {
         this.defaultMQProducerImpl.initTransactionEnv();
@@ -79,6 +89,13 @@ public class TransactionMQProducer extends DefaultMQProducer {
         return this.defaultMQProducerImpl.sendMessageInTransaction(msg, tranExecuter, arg);
     }
 
+    /**
+     * 事务消息发送
+     * @param msg Transactional message to send.
+     * @param arg Argument used along with local transaction executor.
+     * @return
+     * @throws MQClientException
+     */
     @Override
     public TransactionSendResult sendMessageInTransaction(final Message msg,
         final Object arg) throws MQClientException {
