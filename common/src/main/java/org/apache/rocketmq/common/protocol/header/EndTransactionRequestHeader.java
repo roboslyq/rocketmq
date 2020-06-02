@@ -88,6 +88,10 @@ public class EndTransactionRequestHeader implements CommandCustomHeader {
         return commitOrRollback;
     }
 
+    /**
+     * 事务消息提交/回滚
+     * @param commitOrRollback
+     */
     public void setCommitOrRollback(Integer commitOrRollback) {
         this.commitOrRollback = commitOrRollback;
     }

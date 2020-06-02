@@ -234,7 +234,7 @@ public class BrokerStartup {
             // 保存所有配置，方便查看
             controller.getConfiguration().registerConfig(properties);
             /**
-             * 初始化controller
+             * 初始化controller（包括Netty相关，很关键）
              */
             boolean initResult = controller.initialize();
             if (!initResult) {

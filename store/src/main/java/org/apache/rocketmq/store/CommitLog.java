@@ -603,8 +603,8 @@ public class CommitLog {
         int queueId = msg.getQueueId();
 
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
-        // 新建事务消息：TRANSACTION_NOT_TYPE
-        // 事务提交消息: TRANSACTION_COMMIT_TYPE
+        // 新建事务消息：TRANSACTION_NOT_TYPE(事务第一阶段 ：生产者生产半消息)
+        // 事务提交消息: TRANSACTION_COMMIT_TYPE(事务第二阶段：生产者本地事务提交成功，然后发起消息提交MQ中半消息)
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
                 || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // Delay Delivery 如果是事务消息,延迟发送
@@ -1656,10 +1656,12 @@ public class CommitLog {
             switch (tranType) {
                 // Prepared and Rollback message is not consumed, will not enter the
                 // consumer queuec
+                // 半消息或者回滚，不需要消息者消费，将不会加入到consumer queue中：通过queueOffset来控制
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
                     queueOffset = 0L;
                     break;
+                    //非事务消息或者提交事务消息，需要将消息添加到consumeQueue中
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
                 default:
@@ -1762,7 +1764,7 @@ public class CommitLog {
             //构建响应结果
             AppendMessageResult result = new AppendMessageResult(AppendMessageStatus.PUT_OK, wroteOffset, msgLen, msgId,
                 msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
-
+            // 根据事务的类型判断是否需要插入到consumeQueue中
             switch (tranType) {
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
@@ -1770,6 +1772,7 @@ public class CommitLog {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
                     // The next update ConsumeQueue information
+                    // 消息数加1
                     CommitLog.this.topicQueueTable.put(key, ++queueOffset);
                     break;
                 default:

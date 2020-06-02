@@ -321,6 +321,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         String transFlag = origProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
         if (transFlag != null && Boolean.parseBoolean(transFlag)) {
             //事务消息处理
+            // 如果当前broker不支持消息，则直接返回
             if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {
                 response.setCode(ResponseCode.NO_PERMISSION);
                 response.setRemark(
@@ -328,10 +329,10 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                                 + "] sending transaction message is forbidden");
                 return CompletableFuture.completedFuture(response);
             }
-            // 事务消息处理
+            /** 事务消息处理 */
             putMessageResult = this.brokerController.getTransactionalMessageService().asyncPrepareMessage(msgInner);
         } else {
-            //普通消息处理：DefaultMessageStore
+            /** 普通消息处理：DefaultMessageStore */
             putMessageResult = this.brokerController.getMessageStore().asyncPutMessage(msgInner);
         }
         //返回结果

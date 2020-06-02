@@ -248,7 +248,7 @@ public class BrokerController {
     }
 
     /**
-     * 初始化
+     * 初始化事件(包括Netty中的事件处理器)
      * @return
      * @throws CloneNotSupportedException
      */
@@ -351,7 +351,9 @@ public class BrokerController {
             this.consumerManageExecutor =
                 Executors.newFixedThreadPool(this.brokerConfig.getConsumerManageThreadPoolNums(), new ThreadFactoryImpl(
                     "ConsumerManageThread_"));
-
+            /**
+             * 注册事件处理器
+             */
             this.registerProcessor();
 
             final long initialDelay = UtilAll.computeNextMorningTimeMillis() - System.currentTimeMillis();
@@ -586,6 +588,9 @@ public class BrokerController {
         }
     }
 
+    /**
+     * 注册事件处理器
+     */
     public void registerProcessor() {
         /**
          * SendMessageProcessor

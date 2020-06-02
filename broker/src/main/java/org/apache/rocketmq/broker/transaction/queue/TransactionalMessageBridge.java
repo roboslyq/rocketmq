@@ -50,6 +50,9 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 事务消息处理器
+ */
 public class TransactionalMessageBridge {
     private static final InternalLogger LOGGER = InnerLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
@@ -207,20 +210,23 @@ public class TransactionalMessageBridge {
 
     /**
      * 将MessageExtBrokerInner包装成事务消息(即半消息:half Message)
+     * 半消息为什么不会被消费?因为queueId和topic都被替换为指定的值，所以原来的topic和queueid消费不到。
      * @param msgInner
      * @return
      */
     private MessageExtBrokerInner parseHalfMessageInner(MessageExtBrokerInner msgInner) {
-        // 真正的主题名称(事务成功后，需要将消息投到真正的主题中)
+        // 保存/备份真正的主题名称(事务成功后，需要将消息投到真正的主题中)
         MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_REAL_TOPIC, msgInner.getTopic());
-        // 真正的QueueID
+        // 保存/备份真正的QueueID
         MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_REAL_QUEUE_ID,
             String.valueOf(msgInner.getQueueId()));
         //设置事务状态
         msgInner.setSysFlag(
             MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), MessageSysFlag.TRANSACTION_NOT_TYPE));
-        // 获取半消息主题(先将消息投入到默认的半消息主题中，事务提交扣才投入到consumeQueue中供consume消费。)
+        // 以下两步是防止事务被消费(进入consumeQueue队列)
+        // 替换获取半消息主题(先将消息投入到默认的半消息主题中，事务提交扣才投入到consumeQueue中供consume消费。)
         msgInner.setTopic(TransactionalMessageUtil.buildHalfTopic());
+        // 替换事务消息的queueID
         msgInner.setQueueId(0);
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
         return msgInner;

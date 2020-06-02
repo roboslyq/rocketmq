@@ -17,7 +17,10 @@
 package org.apache.rocketmq.client.producer;
 
 public enum LocalTransactionState {
+    // 本地事务提交成功，需要MQ给Prepared的消息进行提交，消费都可以正常消费
     COMMIT_MESSAGE,
+    // 本地事务执行失败，需要MQ给Prepared的消息进行回滚
     ROLLBACK_MESSAGE,
+    // 本地事务状态未知，MQ服务器会定时查询本地事务状态(即发送事务消息时最初状态)
     UNKNOW,
 }
