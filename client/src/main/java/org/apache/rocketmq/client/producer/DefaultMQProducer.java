@@ -503,10 +503,13 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Same to {@link #send(Message)} with message queue selector specified.
-     *
+     * 默认消息生产者(发布者)，但指定了队列选择器(通过顺序消息需要调用此方法发送消息)
      * @param msg Message to send.
+     *             将要发送的消息
      * @param selector Message queue selector, through which we get target message queue to deliver message to.
+     *                 队列选择器
      * @param arg Argument to work along with message queue selector.
+     *             队列选择器中的参数，根据具体业务来实现，比如订单号等
      * @return {@link SendResult} instance to inform senders details of the deliverable, say Message ID of the message,
      * {@link SendStatus} indicating broker storage/replication status, message queue sent to, etc.
      * @throws MQClientException if there is any client error.

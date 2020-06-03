@@ -41,6 +41,7 @@ public class Producer {
                 Message msg =
                     new Message("TopicTestjjj", tags[i % tags.length], "KEY" + i,
                         ("Hello RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET));
+                //自定义实现Queue选择器，从而实现将同一个ID标识的消息放入同一个队列中，进而保证是一个顺序消息。
                 SendResult sendResult = producer.send(msg, new MessageQueueSelector() {
                     @Override
                     public MessageQueue select(List<MessageQueue> mqs, Message msg, Object arg) {
