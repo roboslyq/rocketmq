@@ -51,20 +51,36 @@ import org.apache.rocketmq.common.protocol.body.ConsumeMessageDirectlyResult;
 import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 
+/**
+ * 消费端顺序消费消息
+ */
 public class ConsumeMessageOrderlyService implements ConsumeMessageService {
     private static final InternalLogger log = ClientLogger.getLog();
+    // 消费任务一次运行的最大时间。可以通过-Drocketmq.client.maxTimeConsumeContinuously来设置，默认为60s。
     private final static long MAX_TIME_CONSUME_CONTINUOUSLY =
         Long.parseLong(System.getProperty("rocketmq.client.maxTimeConsumeContinuously", "60000"));
+    // 消息消费者实现类
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
+    // 消息消费者
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+    // 顺序消息消费监听器
     private final MessageListenerOrderly messageListener;
+    // 消息消费任务
     private final BlockingQueue<Runnable> consumeRequestQueue;
+    // 消息消费线程池
     private final ThreadPoolExecutor consumeExecutor;
+    // 消息消费组
     private final String consumerGroup;
+    // 消息消费队列锁
     private final MessageQueueLock messageQueueLock = new MessageQueueLock();
     private final ScheduledExecutorService scheduledExecutorService;
     private volatile boolean stopped = false;
 
+    /**
+     * 构造函数
+     * @param defaultMQPushConsumerImpl
+     * @param messageListener
+     */
     public ConsumeMessageOrderlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl,
         MessageListenerOrderly messageListener) {
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;

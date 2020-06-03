@@ -25,6 +25,13 @@ import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.message.MessageExt;
 
+/**
+ * 1、Consumer客户端会主动循环发送Pull请求到broker，如果没有消息，broker会把请求放入等待队列，新消息到达后返回response。
+ * 2、所以本质上，PushConsumer和PullConsumer两种方式都是通过客户端Pull来实现的。
+ * 只是一个立即返回，不断轮询，另一个是有一定超时时间。
+ * 3、在Broadcast模式下，消息会发送给group内所有consumer。
+ *      在Cluster模式下，每条消息只会发送给group内的一个consumer，但是集群模式的支持消费失败重发，从而保证消息一定被消费。
+ */
 public class PushConsumer {
 
     public static void main(String[] args) throws InterruptedException, MQClientException {

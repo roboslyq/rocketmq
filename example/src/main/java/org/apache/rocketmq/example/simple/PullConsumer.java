@@ -24,6 +24,9 @@ import org.apache.rocketmq.client.consumer.PullResult;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.message.MessageQueue;
 
+/**
+ * 消费者主动拉取消息进行消费：由用户主动调用pull方法来获取消息，没有则返回
+ */
 public class PullConsumer {
     private static final Map<MessageQueue, Long> OFFSE_TABLE = new HashMap<MessageQueue, Long>();
 
