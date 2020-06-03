@@ -66,7 +66,7 @@ public class BrokerStartup {
 
     public static BrokerController start(BrokerController controller) {
         try {
-
+            // MQ 启动的核心类,基本所有内容都在这里面完成启动和初始化
             controller.start();
 
             String tip = "The broker[" + controller.getBrokerConfig().getBrokerName() + ", "
@@ -86,7 +86,7 @@ public class BrokerStartup {
 
         return null;
     }
-
+    /* 停机 */
     public static void shutdown(final BrokerController controller) {
         if (null != controller) {
             controller.shutdown();
@@ -94,7 +94,7 @@ public class BrokerStartup {
     }
 
     /**
-     * 创建Controller
+     * 创建Controller,主要是完成配置加载及相关对象创建,还没进行启动和初始化.需要调用BrokerController.start()来完成具体的初始化
      * @param args
      * @return
      */

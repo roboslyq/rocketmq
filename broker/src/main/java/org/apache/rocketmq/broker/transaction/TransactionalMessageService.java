@@ -49,7 +49,7 @@ public interface TransactionalMessageService {
 
     /**
      * Invoked to process commit prepare message.
-     *
+     * 返回prepared消息
      * @param requestHeader Commit message request header.
      * @return Operate result contains prepare message and relative error code.
      */

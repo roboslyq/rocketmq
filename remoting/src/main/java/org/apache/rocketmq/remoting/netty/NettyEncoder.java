@@ -28,7 +28,7 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 /**
- * netty的编码器
+ * netty的编码器，在{@link NettyRemotingClient.start() }中被调用完成初始化
  */
 @ChannelHandler.Sharable
 public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {

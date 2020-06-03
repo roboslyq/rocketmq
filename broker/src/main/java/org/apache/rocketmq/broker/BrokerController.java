@@ -248,7 +248,7 @@ public class BrokerController {
     }
 
     /**
-     * 初始化事件(包括Netty中的事件处理器)
+     * 初始化事件(包括Netty中的事件处理器，注册各种事件处理器)
      * @return
      * @throws CloneNotSupportedException
      */
@@ -897,14 +897,14 @@ public class BrokerController {
     }
 
     /**
-     * 启动
+     * Broker启动
      * @throws Exception
      */
     public void start() throws Exception {
         if (this.messageStore != null) {
             this.messageStore.start();
         }
-
+        /* 启动netty服务器 */
         if (this.remotingServer != null) {
             this.remotingServer.start();
         }
