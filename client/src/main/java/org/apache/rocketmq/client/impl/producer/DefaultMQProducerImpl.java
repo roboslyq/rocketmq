@@ -251,6 +251,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
     }
 
+    /**
+     * 停止MQ
+     */
     public void shutdown() {
         this.shutdown(true);
     }
@@ -1310,8 +1313,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         /**
          * 以下是两阶段事务提交处理：
          *   1、producer发送prepare消息给mq服务器
-         *   2、如果消息发送成功，执行本地事务，同时将消息transactionId与业务操作一并入库，方便后续事务回查
-         *   3、根据本地事务执行状态，决定是否对prepare消息进行提交/回滚，本地事务执行状态有下面几种
+         *      (1)如果消息发送成功，执行本地事务，同时将消息transactionId与业务操作一并入库，方便后续事务回查。
+         *         如果消息发送失败，则设置本地事务状态为LocalTransactionState.ROLLBACK_MESSAGE。
+         *      (2)根据本地事务执行状态，决定是否对prepare消息进行提交/回滚，本地事务执行状态有下面几种
          */
         switch (sendResult.getSendStatus()) {
             case SEND_OK: {
@@ -1329,7 +1333,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         localTransactionState = localTransactionExecuter.executeLocalTransactionBranch(msg, arg);
                     } else if (transactionListener != null) {
                         log.debug("Used new transaction API");
-
                         localTransactionState = transactionListener.executeLocalTransaction(msg, arg);
                     }
                     if (null == localTransactionState) {

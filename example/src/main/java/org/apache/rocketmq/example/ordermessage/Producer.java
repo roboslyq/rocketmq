@@ -29,6 +29,10 @@ import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
+/**
+ * 通过自定义Queue选择器，将同一id的消息路由到由一个queue下面，从而实现顺序消息。
+ * 因此，此顺序是局部(同一个Queue，不同的Queue中不一定有顺序)
+ */
 public class Producer {
     public static void main(String[] args) throws UnsupportedEncodingException {
         try {
@@ -43,6 +47,8 @@ public class Producer {
                         ("Hello RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET));
                 //自定义实现Queue选择器，从而实现将同一个ID标识的消息放入同一个队列中，进而保证是一个顺序消息。
                 SendResult sendResult = producer.send(msg, new MessageQueueSelector() {
+                    // arg为producer.send()方法中的第3个参数，以下就是orderId，即对应着订单号。因此，同一个订单号的消息会被路由
+                    // 到一个Queue中
                     @Override
                     public MessageQueue select(List<MessageQueue> mqs, Message msg, Object arg) {
                         Integer id = (Integer) arg;

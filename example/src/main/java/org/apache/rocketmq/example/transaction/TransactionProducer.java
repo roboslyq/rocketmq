@@ -30,8 +30,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 事务消息，通过消息头的类型类控制
+ */
 public class TransactionProducer {
     public static void main(String[] args) throws MQClientException, InterruptedException {
+        // 本地事务回调接口
         TransactionListener transactionListener = new TransactionListenerImpl();
         TransactionMQProducer producer = new TransactionMQProducer("please_rename_unique_group_name");
         ExecutorService executorService = new ThreadPoolExecutor(2, 5, 100, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(2000), new ThreadFactory() {
