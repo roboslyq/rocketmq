@@ -833,19 +833,21 @@ public class CommitLog {
         int queueId = msg.getQueueId();
         //  获取消息类型（事务消息，非事务消息，Commit消息)
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
-        // 事务相关 TODO 待读：事务相关
+        // 如果不是事务消息或者是事务第二阶段提交消息（第一阶段是Prepared消息）
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
             || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // Delay Delivery
+            // 如果设置了延迟了属性，那么将其放延延迟队列中
             if (msg.getDelayTimeLevel() > 0) {
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
-
+                // 获取定时消息的Topic(全局统一为"SCHEDULE_TOPIC_XXXX")
                 topic = ScheduleMessageService.SCHEDULE_TOPIC;
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
 
                 // Backup real topic, queueId
+                // 备份真实的topic和queueId,待消息延迟时间到了,就从这两字段取出真实的topic和queueId
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic());
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()));
                 msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
@@ -874,7 +876,7 @@ public class CommitLog {
          */
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
         // 获取写入锁：默认使用PutMessageSpinLock，保证写文件串行
-        putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
+        putMessageLock.lock(); //自旋可重入spin or ReentrantLock ,depending on store config
         try {
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
             this.beginTimeInLock = beginLockTimestamp;
@@ -950,7 +952,7 @@ public class CommitLog {
          */
         handleDiskFlush(result, putMessageResult, msg);
         /**
-         * 控制主从复制
+         * 第4步： 控制主从复制
          */
         handleHA(result, putMessageResult, msg);
 
@@ -1766,9 +1768,11 @@ public class CommitLog {
                 msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
             // 根据事务的类型判断是否需要插入到consumeQueue中
             switch (tranType) {
+                //半消息和回滚消息，不会提交到consumerqueue中，因此此时消费端消费不到对应的消息
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
                     break;
+                //非事物消息或者事务消息提交类型，需要保存到consumerQueue中，供消息者消费。
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
                     // The next update ConsumeQueue information

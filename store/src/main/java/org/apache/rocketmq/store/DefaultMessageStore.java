@@ -179,7 +179,7 @@ public class DefaultMessageStore implements MessageStore {
         }
         //重投消息服务(将消息从commitLog中投递到consumeQueue，以便消费者进行消费)
         this.reputMessageService = new ReputMessageService();
-
+        // 延迟消息处理器
         this.scheduleMessageService = new ScheduleMessageService(this);
 
         this.transientStorePool = new TransientStorePool(messageStoreConfig);
@@ -193,7 +193,9 @@ public class DefaultMessageStore implements MessageStore {
         this.indexService.start();
 
         this.dispatcherList = new LinkedList<>();
+        // 将消息投以consumeQueue中
         this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
+        // 将消息投到index索引中
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
 
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
@@ -301,6 +303,7 @@ public class DefaultMessageStore implements MessageStore {
             }
             log.info("[SetReputOffset] maxPhysicalPosInLogicQueue={} clMinOffset={} clMaxOffset={} clConfirmedOffset={}",
                 maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset(), this.commitLog.getMaxOffset(), this.commitLog.getConfirmOffset());
+            //启动消息重投定时任务(将消息从commitLog抽到consumeQueue或indexQueue中)
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
             this.reputMessageService.start();
 
