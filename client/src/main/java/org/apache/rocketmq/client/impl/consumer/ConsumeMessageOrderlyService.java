@@ -130,6 +130,10 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         this.defaultMQPushConsumerImpl.getRebalanceImpl().unlockAll(false);
     }
 
+    /**
+     * 动态更新消费者线程池大小
+     * @param corePoolSize
+     */
     @Override
     public void updateCorePoolSize(int corePoolSize) {
         if (corePoolSize > 0

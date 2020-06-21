@@ -78,7 +78,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
      * load balance. It's required and needs to be globally unique.
      * </p>
-     *
+     * 消费组
      * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
      */
     private String consumerGroup;
@@ -94,6 +94,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * </p>
      *
      * This field defaults to clustering.
+     * 消费模式
      */
     private MessageModel messageModel = MessageModel.CLUSTERING;
 
@@ -127,6 +128,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * messages born prior to {@link #consumeTimestamp} will be ignored
      * </li>
      * </ul>
+     * 起始消费位置
      */
     private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET;
 
@@ -135,11 +137,13 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * 20131223171201<br>
      * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
      * Default backtracking consumption time Half an hour ago.
+     * 消费者时间戳，默认是半小时前
      */
     private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
 
     /**
      * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
+     * 选择MessageQueue策略，默认是轮询
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
@@ -151,31 +155,37 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Message listener
+     * 消息监听器，供用户实现消息消费的业务逻辑
      */
     private MessageListener messageListener;
 
     /**
      * Offset Storage
+     * 消费位置offset的存储器
      */
     private OffsetStore offsetStore;
 
     /**
      * Minimum consumer thread number
+     * 最小消费线程数量
      */
     private int consumeThreadMin = 20;
 
     /**
      * Max consumer thread number
+     * 最大消费线程数量
      */
     private int consumeThreadMax = 20;
 
     /**
      * Threshold for dynamic adjustment of the number of thread pool
+     * 动态调整线程池数量的阀值
      */
     private long adjustThreadPoolNumsThreshold = 100000;
 
     /**
      * Concurrently max span offset.it has no effect on sequential consumption
+     * 并发(多线程消费时)最大跨度偏移量。对顺序消息没有影响，因为顺序消息仅仅单线程消费
      */
     private int consumeConcurrentlyMaxSpan = 2000;
 

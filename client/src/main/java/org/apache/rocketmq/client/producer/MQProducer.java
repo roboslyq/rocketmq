@@ -26,28 +26,90 @@ import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
+/**
+ * MQ生产者接口
+ */
 public interface MQProducer extends MQAdmin {
     void start() throws MQClientException;
 
     void shutdown();
 
+    /**
+     * 根据主题获取对应的MessageQueue
+     * @param topic
+     * @return
+     * @throws MQClientException
+     */
     List<MessageQueue> fetchPublishMessageQueues(final String topic) throws MQClientException;
 
+    /**
+     * 发送消息
+     * @param msg
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     SendResult send(final Message msg) throws MQClientException, RemotingException, MQBrokerException,
         InterruptedException;
 
+    /**
+     * 发送消息，指定超时时间
+     * @param msg
+     * @param timeout
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     SendResult send(final Message msg, final long timeout) throws MQClientException,
         RemotingException, MQBrokerException, InterruptedException;
 
+    /**
+     * 发送消息，指定回调函数
+     * @param msg
+     * @param sendCallback
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws InterruptedException
+     */
     void send(final Message msg, final SendCallback sendCallback) throws MQClientException,
         RemotingException, InterruptedException;
 
+    /**
+     * 发送消息，指定回调函数和超时时间
+     * @param msg
+     * @param sendCallback
+     * @param timeout
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws InterruptedException
+     */
     void send(final Message msg, final SendCallback sendCallback, final long timeout)
         throws MQClientException, RemotingException, InterruptedException;
 
+    /**
+     * 单向发送消息（不需要确认）
+     * @param msg
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws InterruptedException
+     */
     void sendOneway(final Message msg) throws MQClientException, RemotingException,
         InterruptedException;
 
+    /**
+     * 指定MessageQueue，顺序消息生产需要
+     * @param msg
+     * @param mq
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     SendResult send(final Message msg, final MessageQueue mq) throws MQClientException,
         RemotingException, MQBrokerException, InterruptedException;
 
@@ -101,6 +163,18 @@ public interface MQProducer extends MQAdmin {
         throws MQClientException, RemotingException, MQBrokerException, InterruptedException;
 
     //for rpc
+
+    /**
+     * Rpc方式发送消息
+     * @param msg
+     * @param timeout
+     * @return
+     * @throws RequestTimeoutException
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     Message request(final Message msg, final long timeout) throws RequestTimeoutException, MQClientException,
         RemotingException, MQBrokerException, InterruptedException;
 

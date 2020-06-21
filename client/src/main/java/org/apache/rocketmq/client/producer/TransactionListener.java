@@ -19,6 +19,11 @@ package org.apache.rocketmq.client.producer;
 import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.message.MessageExt;
 
+/**
+ * 事务监听接口，生产者发送事务消息时，需要实现此接口来处理本地事务
+ * 1、如果消息(半消息prepared)发送成功，那么需要执行本地事务
+ * 2、如果生产者没有给Broker确认信息(提交/回滚消息)，那么Broker需要根据此接口来反查本地事务的状态，从而判断半消息是需要提交或者回滚。
+ */
 public interface TransactionListener {
     /**
      * When send transactional prepare(half) message succeed, this method will be invoked to execute local transaction.

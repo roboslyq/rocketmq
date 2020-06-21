@@ -24,11 +24,15 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
  * Base interface for MQ management
+ * MQ管理的基本接口，主要有三个子接口：MQAdminExt，MQConsumer，MQProducer
+ * 1、主题管理
+ * 2、Offset管理
+ * 3、Message查询
  */
 public interface MQAdmin {
     /**
      * Creates an topic
-     *
+     * 创建主题
      * @param key accesskey
      * @param newTopic topic name
      * @param queueNum topic's queue number
@@ -38,7 +42,7 @@ public interface MQAdmin {
 
     /**
      * Creates an topic
-     *
+     * 创建主题：指定
      * @param key accesskey
      * @param newTopic topic name
      * @param queueNum topic's queue number
