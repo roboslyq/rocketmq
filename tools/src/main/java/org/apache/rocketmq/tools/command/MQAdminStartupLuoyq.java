@@ -19,10 +19,6 @@ package org.apache.rocketmq.tools.command;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;
 import ch.qos.logback.core.joran.spi.JoranException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.PosixParser;
@@ -32,124 +28,100 @@ import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.srvutil.ServerUtil;
-import org.apache.rocketmq.tools.command.acl.ClusterAclConfigVersionListSubCommand;
-import org.apache.rocketmq.tools.command.acl.GetAccessConfigSubCommand;
-import org.apache.rocketmq.tools.command.acl.DeleteAccessConfigSubCommand;
-import org.apache.rocketmq.tools.command.acl.UpdateAccessConfigSubCommand;
-import org.apache.rocketmq.tools.command.acl.UpdateGlobalWhiteAddrSubCommand;
-import org.apache.rocketmq.tools.command.broker.BrokerConsumeStatsSubCommad;
-import org.apache.rocketmq.tools.command.broker.BrokerStatusSubCommand;
-import org.apache.rocketmq.tools.command.broker.CleanExpiredCQSubCommand;
-import org.apache.rocketmq.tools.command.broker.CleanUnusedTopicCommand;
-import org.apache.rocketmq.tools.command.broker.GetBrokerConfigCommand;
-import org.apache.rocketmq.tools.command.broker.SendMsgStatusCommand;
-import org.apache.rocketmq.tools.command.broker.UpdateBrokerConfigSubCommand;
+import org.apache.rocketmq.tools.command.acl.*;
+import org.apache.rocketmq.tools.command.broker.*;
 import org.apache.rocketmq.tools.command.cluster.CLusterSendMsgRTCommand;
 import org.apache.rocketmq.tools.command.cluster.ClusterListSubCommand;
 import org.apache.rocketmq.tools.command.connection.ConsumerConnectionSubCommand;
 import org.apache.rocketmq.tools.command.connection.ProducerConnectionSubCommand;
-import org.apache.rocketmq.tools.command.consumer.ConsumerProgressSubCommand;
-import org.apache.rocketmq.tools.command.consumer.ConsumerStatusSubCommand;
-import org.apache.rocketmq.tools.command.consumer.DeleteSubscriptionGroupCommand;
-import org.apache.rocketmq.tools.command.consumer.StartMonitoringSubCommand;
-import org.apache.rocketmq.tools.command.consumer.UpdateSubGroupSubCommand;
-import org.apache.rocketmq.tools.command.message.CheckMsgSendRTCommand;
-import org.apache.rocketmq.tools.command.message.ConsumeMessageCommand;
-import org.apache.rocketmq.tools.command.message.PrintMessageByQueueCommand;
-import org.apache.rocketmq.tools.command.message.PrintMessageSubCommand;
-import org.apache.rocketmq.tools.command.message.QueryMsgByIdSubCommand;
-import org.apache.rocketmq.tools.command.message.QueryMsgByKeySubCommand;
-import org.apache.rocketmq.tools.command.message.QueryMsgByOffsetSubCommand;
-import org.apache.rocketmq.tools.command.message.QueryMsgByUniqueKeySubCommand;
-import org.apache.rocketmq.tools.command.message.SendMessageCommand;
-import org.apache.rocketmq.tools.command.namesrv.DeleteKvConfigCommand;
-import org.apache.rocketmq.tools.command.namesrv.GetNamesrvConfigCommand;
-import org.apache.rocketmq.tools.command.namesrv.UpdateKvConfigCommand;
-import org.apache.rocketmq.tools.command.namesrv.UpdateNamesrvConfigCommand;
-import org.apache.rocketmq.tools.command.namesrv.WipeWritePermSubCommand;
+import org.apache.rocketmq.tools.command.consumer.*;
+import org.apache.rocketmq.tools.command.message.*;
+import org.apache.rocketmq.tools.command.namesrv.*;
 import org.apache.rocketmq.tools.command.offset.CloneGroupOffsetCommand;
 import org.apache.rocketmq.tools.command.offset.ResetOffsetByTimeCommand;
 import org.apache.rocketmq.tools.command.queue.QueryConsumeQueueCommand;
 import org.apache.rocketmq.tools.command.stats.StatsAllSubCommand;
-import org.apache.rocketmq.tools.command.topic.AllocateMQSubCommand;
-import org.apache.rocketmq.tools.command.topic.DeleteTopicSubCommand;
-import org.apache.rocketmq.tools.command.topic.TopicClusterSubCommand;
-import org.apache.rocketmq.tools.command.topic.TopicListSubCommand;
-import org.apache.rocketmq.tools.command.topic.TopicRouteSubCommand;
-import org.apache.rocketmq.tools.command.topic.TopicStatusSubCommand;
-import org.apache.rocketmq.tools.command.topic.UpdateOrderConfCommand;
-import org.apache.rocketmq.tools.command.topic.UpdateTopicPermSubCommand;
-import org.apache.rocketmq.tools.command.topic.UpdateTopicSubCommand;
+import org.apache.rocketmq.tools.command.topic.*;
 import org.slf4j.LoggerFactory;
 
-public class MQAdminStartup {
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Scanner;
+
+/**
+ * 循环监听，支持窗口输入命令\
+ * 1、因Subcmd的物特殊性，对于producer每执行完一个命令就会hshutdown。所以每次命令执行是一个新的cmd。
+ */
+public class MQAdminStartupLuoyq {
     protected static List<SubCommand> subCommandList = new ArrayList<SubCommand>();
-    private static List<String> rocketCommandList = new ArrayList<>();
     private static String rocketmqHome = System.getProperty(MixAll.ROCKETMQ_HOME_PROPERTY,
         System.getenv(MixAll.ROCKETMQ_HOME_ENV));
-    static{
-        rocketCommandList.add( "sendMessage -b localhost  -t  LUOYQ_TEST1 -c LUOYQ_TEST1 -k test -p hello,world  -n localhost:9876" );
-    }
-    public static void main(String[] args) {
-        if(Objects.isNull( args ) || args.length == 0){
-            rocketCommandList.stream().forEach( commandLine ->{main0(commandLine.split( " " ), null);} );
-        }
-        else {
-            main0(args, null);
-        }
+
+    public static void main(String[] args) throws IOException {
+       main0( args,null );
     }
 
     public static void main0(String[] args, RPCHook rpcHook) {
-        System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
-
-        //PackageConflictDetect.detectFastjson();
-
-        initCommand();
 
         try {
-            initLogback();
-            switch (args.length) {
-                case 0:
-                    printHelp();
-                    break;
-                case 2:
-                    if (args[0].equals("help")) {
-                        SubCommand cmd = findSubCommand(args[1]);
-                        if (cmd != null) {
-                            Options options = ServerUtil.buildCommandlineOptions(new Options());
-                            options = cmd.buildCommandlineOptions(options);
-                            if (options != null) {
-                                ServerUtil.printCommandLineHelp("mqadmin " + cmd.commandName(), options);
+
+            while (true){
+                System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
+                //PackageConflictDetect.detectFastjson();
+                initCommand();
+                initLogback();
+                Scanner sc =new Scanner(System.in);
+                String command;
+                System.out.print("请输入命令: \n");
+                command=sc.nextLine();
+                args = command.split( "\\s+");
+                switch (args.length) {
+                    case 0:
+                        printHelp();
+                        break;
+                    case 2:
+                        if (args[0].equals("help")) {
+                            // 待扩展实现，目前仅实现一个生产消息命令
+                            SubCommand cmd = new SendMessageCommand();//findSubCommand(args[1]);
+                            if (cmd != null) {
+                                Options options = ServerUtil.buildCommandlineOptions(new Options());
+                                options = cmd.buildCommandlineOptions(options);
+                                if (options != null) {
+                                    ServerUtil.printCommandLineHelp("mqadmin " + cmd.commandName(), options);
+                                }
+                            } else {
+                                System.out.printf("The sub command %s not exist.%n", args[1]);
                             }
+                            break;
+                        }
+                    case 1:
+                    default:
+                        SubCommand cmd =  new SendMessageCommand();
+                        if (cmd != null) {
+                            String[] subargs = parseSubArgs(args);
+
+                            Options options = ServerUtil.buildCommandlineOptions(new Options());
+                            final CommandLine commandLine =
+                                    ServerUtil.parseCmdLine("mqadmin " + cmd.commandName(), subargs, cmd.buildCommandlineOptions(options),
+                                            new PosixParser());
+                            if (null == commandLine) {
+                                return;
+                            }
+
+                            if (commandLine.hasOption('n')) {
+                                String namesrvAddr = commandLine.getOptionValue('n');
+                                System.setProperty(MixAll.NAMESRV_ADDR_PROPERTY, namesrvAddr);
+                            }
+
+                            cmd.execute(commandLine, options, AclUtils.getAclRPCHook(rocketmqHome + MixAll.ACL_CONF_TOOLS_FILE));
                         } else {
-                            System.out.printf("The sub command %s not exist.%n", args[1]);
+                            System.out.printf("The sub command %s not exist.%n", args[0]);
                         }
                         break;
-                    }
-                case 1:
-                default:
-                    SubCommand cmd = findSubCommand(args[0]);
-                    if (cmd != null) {
-                        String[] subargs = parseSubArgs(args);
-
-                        Options options = ServerUtil.buildCommandlineOptions(new Options());
-                        final CommandLine commandLine =
-                            ServerUtil.parseCmdLine("mqadmin " + cmd.commandName(), subargs, cmd.buildCommandlineOptions(options),
-                                new PosixParser());
-                        if (null == commandLine) {
-                            return;
-                        }
-
-                        if (commandLine.hasOption('n')) {
-                            String namesrvAddr = commandLine.getOptionValue('n');
-                            System.setProperty(MixAll.NAMESRV_ADDR_PROPERTY, namesrvAddr);
-                        }
-
-                        cmd.execute(commandLine, options, AclUtils.getAclRPCHook(rocketmqHome + MixAll.ACL_CONF_TOOLS_FILE));
-                    } else {
-                        System.out.printf("The sub command %s not exist.%n", args[0]);
-                    }
-                    break;
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -246,6 +218,72 @@ public class MQAdminStartup {
             }
         }
 
+        return null;
+    }
+    private static SubCommand findSubCommandNew(final String name) {
+        initCommand(new UpdateTopicSubCommand());
+        initCommand(new DeleteTopicSubCommand());
+        initCommand(new UpdateSubGroupSubCommand());
+        initCommand(new DeleteSubscriptionGroupCommand());
+        initCommand(new UpdateBrokerConfigSubCommand());
+        initCommand(new UpdateTopicPermSubCommand());
+
+        initCommand(new TopicRouteSubCommand());
+        initCommand(new TopicStatusSubCommand());
+        initCommand(new TopicClusterSubCommand());
+
+        initCommand(new BrokerStatusSubCommand());
+        initCommand(new QueryMsgByIdSubCommand());
+        initCommand(new QueryMsgByKeySubCommand());
+        initCommand(new QueryMsgByUniqueKeySubCommand());
+        initCommand(new QueryMsgByOffsetSubCommand());
+
+        initCommand(new PrintMessageSubCommand());
+        initCommand(new PrintMessageByQueueCommand());
+        initCommand(new SendMsgStatusCommand());
+        initCommand(new BrokerConsumeStatsSubCommad());
+
+        initCommand(new ProducerConnectionSubCommand());
+        initCommand(new ConsumerConnectionSubCommand());
+        initCommand(new ConsumerProgressSubCommand());
+        initCommand(new ConsumerStatusSubCommand());
+        initCommand(new CloneGroupOffsetCommand());
+
+        initCommand(new ClusterListSubCommand());
+        initCommand(new TopicListSubCommand());
+
+        initCommand(new UpdateKvConfigCommand());
+        initCommand(new DeleteKvConfigCommand());
+
+        initCommand(new WipeWritePermSubCommand());
+        initCommand(new ResetOffsetByTimeCommand());
+
+        initCommand(new UpdateOrderConfCommand());
+        initCommand(new CleanExpiredCQSubCommand());
+        initCommand(new CleanUnusedTopicCommand());
+
+        initCommand(new StartMonitoringSubCommand());
+        initCommand(new StatsAllSubCommand());
+
+        initCommand(new AllocateMQSubCommand());
+
+        initCommand(new CheckMsgSendRTCommand());
+        initCommand(new CLusterSendMsgRTCommand());
+
+        initCommand(new GetNamesrvConfigCommand());
+        initCommand(new UpdateNamesrvConfigCommand());
+        initCommand(new GetBrokerConfigCommand());
+
+        initCommand(new QueryConsumeQueueCommand());
+        initCommand(new SendMessageCommand());
+        initCommand(new ConsumeMessageCommand());
+
+        //for acl command
+        initCommand(new UpdateAccessConfigSubCommand());
+        initCommand(new DeleteAccessConfigSubCommand());
+        initCommand(new ClusterAclConfigVersionListSubCommand());
+        initCommand(new UpdateGlobalWhiteAddrSubCommand());
+        initCommand(new GetAccessConfigSubCommand());
         return null;
     }
 

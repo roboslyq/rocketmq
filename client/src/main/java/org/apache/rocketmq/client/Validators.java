@@ -28,11 +28,14 @@ import org.apache.rocketmq.common.protocol.ResponseCode;
 
 /**
  * Common Validator
+ * 通用校验器
  */
 public class Validators {
     public static final String VALID_PATTERN_STR = "^[%|a-zA-Z0-9_-]+$";
     public static final Pattern PATTERN = Pattern.compile(VALID_PATTERN_STR);
+    // 消费者名称最大长度
     public static final int CHARACTER_MAX_LENGTH = 255;
+    // Topic名称最大长度
     public static final int TOPIC_MAX_LENGTH = 127;
 
     /**
@@ -49,6 +52,7 @@ public class Validators {
 
     /**
      * Validate group
+     * 检查消费组
      */
     public static void checkGroup(String group) throws MQClientException {
         if (UtilAll.isBlank(group)) {

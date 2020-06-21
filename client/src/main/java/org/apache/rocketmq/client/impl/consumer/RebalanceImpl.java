@@ -163,6 +163,9 @@ public abstract class RebalanceImpl {
         return false;
     }
 
+    /**
+     * 给远程Broker上锁(顺序消息使用，防止多个消费者对同一消息进行消费)
+     */
     public void lockAll() {
         HashMap<String, Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
 
@@ -170,6 +173,7 @@ public abstract class RebalanceImpl {
         while (it.hasNext()) {
             Entry<String, Set<MessageQueue>> entry = it.next();
             final String brokerName = entry.getKey();
+            // 所有待消费的MessageQueue
             final Set<MessageQueue> mqs = entry.getValue();
 
             if (mqs.isEmpty())
@@ -183,9 +187,10 @@ public abstract class RebalanceImpl {
                 requestBody.setMqSet(mqs);
 
                 try {
+                    // 返回加锁成功的MessageQueue
                     Set<MessageQueue> lockOKMQSet =
                         this.mQClientFactory.getMQClientAPIImpl().lockBatchMQ(findBrokerResult.getBrokerAddr(), requestBody, 1000);
-
+                    // 处理加锁成功的MessageQueue
                     for (MessageQueue mq : lockOKMQSet) {
                         ProcessQueue processQueue = this.processQueueTable.get(mq);
                         if (processQueue != null) {
@@ -197,6 +202,7 @@ public abstract class RebalanceImpl {
                             processQueue.setLastLockTimestamp(System.currentTimeMillis());
                         }
                     }
+                    // 如果不在返回的成功的MessageQueue里面，则表明当前Queue加锁失败
                     for (MessageQueue mq : mqs) {
                         if (!lockOKMQSet.contains(mq)) {
                             ProcessQueue processQueue = this.processQueueTable.get(mq);
@@ -213,6 +219,10 @@ public abstract class RebalanceImpl {
         }
     }
 
+    /**
+     * 负载均衡实现
+     * @param isOrder
+     */
     public void doRebalance(final boolean isOrder) {
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
@@ -235,11 +245,19 @@ public abstract class RebalanceImpl {
         return subscriptionInner;
     }
 
+    /**
+     * 根据主题实现负载均衡（消费者根据topic获取对应的broker）
+     * @param topic
+     * @param isOrder
+     */
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
         switch (messageModel) {
+            //广播消费
             case BROADCASTING: {
+                //获取所有的MessageQueue
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
                 if (mqSet != null) {
+                    //更新本地的(消费者端)的MessageQueue，如果有变化 ，changed为true,如果没有发生变化 ，changed为false
                     boolean changed = this.updateProcessQueueTableInRebalance(topic, mqSet, isOrder);
                     if (changed) {
                         this.messageQueueChanged(topic, mqSet, mqSet);
@@ -254,8 +272,11 @@ public abstract class RebalanceImpl {
                 }
                 break;
             }
+            //集群消息(普通订阅消息)
             case CLUSTERING: {
+                //获取当前已经订阅的mqSet
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
+                //获取当前Topic的其它consumer.
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
@@ -266,7 +287,7 @@ public abstract class RebalanceImpl {
                 if (null == cidAll) {
                     log.warn("doRebalance, {} {}, get consumer id list failed", consumerGroup, topic);
                 }
-
+                //当前主题对应的MessageQueue以及当前消费者组中的其它consumer
                 if (mqSet != null && cidAll != null) {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>();
                     mqAll.addAll(mqSet);

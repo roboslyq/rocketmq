@@ -146,12 +146,22 @@ public class ConsumerGroupInfo {
         return updated;
     }
 
+    /**
+     * 更新订阅信息
+     * 1、必须保证消费组下的消费者订阅的主题都一样，否则会导致部分topic来回不断的被remove，从则影响消费延迟。
+     * 并且Broker和consumer不会打印异常日志：
+     *   the consumer's subscription not exist, group: cosume_group1, topic:LUOYQ_TEST1
+     *   subscription changed, group: cosume_group1 remove topic LUOYQ_TEST2 SubscriptionData [classFilterMode=false, topic=LUOYQ_TEST2, subString=*, tagsSet=[], codeSet=[], subVersion=1592104441761, expressionType=TAG]
+     * @param subList
+     * @return
+     */
     public boolean updateSubscription(final Set<SubscriptionData> subList) {
         boolean updated = false;
 
         for (SubscriptionData sub : subList) {
             SubscriptionData old = this.subscriptionTable.get(sub.getTopic());
             if (old == null) {
+                //保存客户端新的订阅
                 SubscriptionData prev = this.subscriptionTable.putIfAbsent(sub.getTopic(), sub);
                 if (null == prev) {
                     updated = true;
@@ -178,13 +188,14 @@ public class ConsumerGroupInfo {
             String oldTopic = next.getKey();
 
             boolean exist = false;
+            // 关键代码 ，如果所有的订阅都组中都存在相同的主题，则不会触发面后面的移除方法
             for (SubscriptionData sub : subList) {
                 if (sub.getTopic().equals(oldTopic)) {
                     exist = true;
                     break;
                 }
             }
-
+            // 移除老的订阅（1个Group(同一个Group启动了多个jvm客户端)订阅了多个Topic可能会出现问题）
             if (!exist) {
                 log.warn("subscription changed, group: {} remove topic {} {}",
                     this.groupName,

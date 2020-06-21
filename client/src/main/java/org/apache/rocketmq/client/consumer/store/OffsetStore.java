@@ -25,6 +25,7 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
  * Offset store interface
+ * 消费偏移位置存储器
  */
 public interface OffsetStore {
     /**

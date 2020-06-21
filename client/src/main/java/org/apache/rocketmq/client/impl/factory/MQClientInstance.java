@@ -241,16 +241,17 @@ public class MQClientInstance {
                 case CREATE_JUST:
                     this.serviceState = ServiceState.START_FAILED;
                     // If not specified,looking address from name server
+                    // 从nameserver中拉取相关信息
                     if (null == this.clientConfig.getNamesrvAddr()) {
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
-                    // Start request-response channel
+                    // Start request-response channel(本质是netty客户端启动)
                     this.mQClientAPIImpl.start();
-                    // Start various schedule tasks
+                    // Start various schedule tasks（心跳检查）
                     this.startScheduledTask();
-                    // Start pull service（从MQ中拉取消息服务 ）
+                    // Start pull service（从MQ中拉取消息服务，在run方法中会调用注入的MessageListener进行消息处理 ）
                     this.pullMessageService.start();
-                    // Start rebalance service
+                    // Start rebalance service（默认实现是RebalanceService）
                     this.rebalanceService.start();
                     // Start push service
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
@@ -892,6 +893,12 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 同一个JVM中，不允许重复定义group名称
+     * @param group
+     * @param consumer
+     * @return
+     */
     public boolean registerConsumer(final String group, final MQConsumerInner consumer) {
         if (null == group || null == consumer) {
             return false;
@@ -997,6 +1004,9 @@ public class MQClientInstance {
         this.rebalanceService.wakeup();
     }
 
+    /**
+     * 通过这个方法，得知对应的consumer负责处理哪些queue的消息
+     */
     public void doRebalance() {
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();
@@ -1140,7 +1150,7 @@ public class MQClientInstance {
                 return;
             }
             consumer.suspend();
-
+            // 获取对应的ProccessQueue
             ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = consumer.getRebalanceImpl().getProcessQueueTable();
             for (Map.Entry<MessageQueue, ProcessQueue> entry : processQueueTable.entrySet()) {
                 MessageQueue mq = entry.getKey();

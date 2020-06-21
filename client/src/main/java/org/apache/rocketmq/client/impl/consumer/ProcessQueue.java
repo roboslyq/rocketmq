@@ -37,6 +37,9 @@ import org.apache.rocketmq.common.protocol.body.ProcessQueueInfo;
 
 /**
  * Queue consumption snapshot
+ * 消费者从Broker中拉的MessageQueue快照，即对应的消费者对消息的本地缓存
+ * 1、RebalanceImpl到broker拉取制定queue的消息，然后把消息按照queueId放到对应的本地的ProcessQueue缓存中
+ * 2、ConsumeMessageService调用listener处理消息，处理成功后清除掉
  */
 public class ProcessQueue {
     public final static long REBALANCE_LOCK_MAX_LIVE_TIME =
@@ -257,6 +260,11 @@ public class ProcessQueue {
         }
     }
 
+    /**
+     * 1、takeMessage()时创建的临时map清空
+     * 2、记录当前消费的offset
+     * @return
+     */
     public long commit() {
         try {
             this.lockTreeMap.writeLock().lockInterruptibly();
@@ -280,6 +288,10 @@ public class ProcessQueue {
         return -1;
     }
 
+    /**
+     * 将消息失败但没超过最大消费重试次数的消息重新放入msgTreeMap中
+     * @param msgs
+     */
     public void makeMessageToCosumeAgain(List<MessageExt> msgs) {
         try {
             this.lockTreeMap.writeLock().lockInterruptibly();

@@ -212,6 +212,10 @@ public class MQClientAPIImpl {
         return remotingClient;
     }
 
+    /**
+     * 会将HeartbeatData对象发送到broker端，携带consumer group和topic信息
+     * @return
+     */
     public String fetchNameServerAddr() {
         try {
             String addrs = this.topAddressing.fetchNSAddr();
@@ -235,6 +239,9 @@ public class MQClientAPIImpl {
         this.remotingClient.updateNameServerAddressList(list);
     }
 
+    /**
+     * 启动Netty服务
+     */
     public void start() {
         this.remotingClient.start();
     }

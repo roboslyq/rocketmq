@@ -59,6 +59,10 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
  * <p>
  * <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
  * </p>
+ * 通常消费流程：
+ * 1、Consumer启动后会初始化一个RebalanceImpl做rebalance操作，从而得到当前这个consumer负责处理哪些queue的消息
+ * 2、RebalanceImpl到broker拉取制定queue的消息，然后把消息按照queueId放到对应的本地的ProcessQueue缓存中
+ * 3、ConsumeMessageService调用listener处理消息，处理成功后清除掉
  */
 public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsumer {
 
@@ -66,6 +70,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Internal implementation. Most of the functions herein are delegated to it.
+     * 内部实现，DefaultMQPushConsumer的大部分方法都是委派给DefaultMQPushConsumerImpl
      */
     protected final transient DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
@@ -140,6 +145,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Subscription relationship
+     * 保存主题订阅关系
      */
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 

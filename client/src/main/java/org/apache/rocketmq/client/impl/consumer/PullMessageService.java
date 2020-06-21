@@ -98,6 +98,9 @@ public class PullMessageService extends ServiceThread {
         }
     }
 
+    /**
+     * 拉取消息服务，入口，在MQClientInstane进行启动：this.pullMessageService.start();
+     */
     @Override
     public void run() {
         log.info(this.getServiceName() + " service started");

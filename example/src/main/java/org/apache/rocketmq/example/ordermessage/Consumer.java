@@ -26,6 +26,9 @@ import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.message.MessageExt;
 
+/**
+ * 顺序消息消费者
+ */
 public class Consumer {
 
     public static void main(String[] args) throws MQClientException {
@@ -34,7 +37,9 @@ public class Consumer {
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
 
         consumer.subscribe("TopicTest", "TagA || TagC || TagD");
-
+        /**
+         * 注意:核心点是监听器使用了MessageListenerOrderly，与之对应的是MessageListenerConcurrently
+         */
         consumer.registerMessageListener(new MessageListenerOrderly() {
             AtomicLong consumeTimes = new AtomicLong(0);
 
@@ -51,6 +56,9 @@ public class Consumer {
                     return ConsumeOrderlyStatus.COMMIT;
                 } else if ((this.consumeTimes.get() % 5) == 0) {
                     context.setSuspendCurrentQueueTimeMillis(3000);
+                    // 消息失败，返回状态SUSPEND_CURRENT_QUEUE_A_MOMENT，而普通消息，应该返回RECONSUME_LATER
+                    // 因为对于顺序消息，消费失败是不会返回给broker重新投递的（其实即使重发也还是发到这个consumer上，没必要多此一举）
+                    // 而是会放到本地的缓存队列中重新处理。
                     return ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT;
                 }
 

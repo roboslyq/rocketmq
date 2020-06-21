@@ -95,6 +95,9 @@ public class ClientConfig {
         this.instanceName = instanceName;
     }
 
+    /**
+     * 如果是CLUSTERING 模式，消费者实现名称不能为DEFAULT,如果没有设置instatnceName，则使用进程PID
+     */
     public void changeInstanceNameToPID() {
         if (this.instanceName.equals("DEFAULT")) {
             this.instanceName = String.valueOf(UtilAll.getPid());
