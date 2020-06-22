@@ -41,3 +41,32 @@ mmap(memory map)是一种内存映射文件的方法，即将一个文件或者�
 
 # ByteBuffer之MappedByteBuffer
 
+# RocketMQ集群高可用
+
+> 参考资料https://www.dazhuanlan.com/2020/03/28/5e7ee76295f5e/
+
+- #### Master Broker是如何将消息同步给Slave Broker的？
+
+  - 为了保证MQ的数据不丢失而且具备一定的高可用性，所以一般都是得将Broker部署成Master-Slave模式的，也就是一个Master Broker对应一个Slave Broker。然后Master需要在接收到消息之后，将数据同步给Slave，这样一旦Master Broker挂了，还有Slave上有一份数据。
+  - RocketMQ的Master-Slave模式采取的是Slave Broker不停的发送请求到Master Broker去**拉取**消息。
+    ![avatar](https://s2.ax1x.com/2019/11/13/MYnnoV.png)
+
+- #### RocketMQ 实现读写分离了吗？
+
+  - 有可能从Master Broker获取消息，也有可能从Slave Broker获取消息。
+  - 作为消费者的系统在获取消息的时候会先发送请求到Master Broker上去，请求获取一批消息，此时Master Broker是会返回一批消息给消费者系统的。然后Master Broker在返回消息给消费者系统的时候，会根据当时Master Broker的**负载情况**和Slave Broker的同步情况，向消费者系统**建议**下一次拉取消息的时候是从Master Broker拉取还是从Slave Broker拉取。
+
+- #### 如果Slave Broke挂掉了有什么影响？
+
+  - 因为消息写入全部是发送到Master Broker的，然后消息获取也可以走Master Broker，只不过有一些消息获取可能是从Slave Broker去走的。所以如果Slave Broker挂了，那么此时无论消息写入还是消息拉取，还是可以继续从Master Broke去走，对整体运行不影响。
+
+- #### 如果Master Broker挂掉了该怎么办？
+
+  - **RocketMQ 4.5版本之前**，都是用Slave Broker同步数据，尽量保证数据不丢失，但是一旦Master故障了，Slave是没法自动切换成Master的。
+  - 如果Master Broker宕机了，这时就得**手动**做一些运维操作，把Slave Broker重新修改一些配置，重启机器给调整为Master Broker。
+  - Master-Slave模式不是彻底的高可用模式，他没法实现自动把Slave切换为Master
+
+- #### 基于Dledger实现RocketMQ高可用自动切换（RocketMQ 4.5之后）
+
+  - 把Dledger融入RocketMQ之后，就可以让一个Master Broker对应多个Slave Broker，也就是说一份数据可以有多份副本，比如一个Master Broker对应两个Slave Broker。
+  - Master Broker宕机了，就可以在多个副本，也就是多个Slave中，通过**Dledger技术和Raft协议算法**进行leader选举，直接将一个Slave Broker选举为新的Master Broker，然后这个新的Master Broker就可以对外提供服务了。
