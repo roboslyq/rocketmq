@@ -57,23 +57,39 @@ import org.apache.rocketmq.store.schedule.ScheduleMessageService;
  * 主要是增加了主人复制多副本的一些特性。
  */
 public class DLedgerCommitLog extends CommitLog {
+    /**
+     * 基于 raft 协议实现的集群内的一个节点，用 DLedgerServer 实例表示。
+     */
     private final DLedgerServer dLedgerServer;
+    /**
+     * DLedger 的配置信息。
+     */
     private final DLedgerConfig dLedgerConfig;
+    /**
+     * DLedger 基于文件映射的存储实现。
+     */
     private final DLedgerMmapFileStore dLedgerFileStore;
+    /**
+     * DLedger 所管理的存储文件集合，对比 RocketMQ 中的 MappedFileQueue。
+     */
     private final MmapFileList dLedgerFileList;
 
     //The id identifies the broker role, 0 means master, others means slave
+    // 节点ID，0 表示主节点，非0表示从节点
     private final int id;
-
+    // 消息序列器
     private final MessageSerializer messageSerializer;
+    // 用于记录 \消息追加的时耗(日志追加所持有锁时间)。
     private volatile long beginTimeInDledgerLock = 0;
 
     //This offset separate the old commitlog from dledger commitlog
+    // 记录的旧 commitlog 文件中的最大偏移量，如果访问的偏移量大于它，则访问 dledger 管理的文件。
     private long dividedCommitlogOffset = -1;
-
+    // 是否正在恢复旧的 commitlog 文件。
     private boolean isInrecoveringOldCommitlog = false;
 
     public DLedgerCommitLog(final DefaultMessageStore defaultMessageStore) {
+        //调用父类 即 CommitLog 的构造函数，加载 ${ROCKETMQ_HOME}/store/ comitlog 下的 commitlog 文件，以便兼容升级 DLedger 的消息
         super(defaultMessageStore);
         dLedgerConfig = new DLedgerConfig();
         dLedgerConfig.setEnableDiskForceClean(defaultMessageStore.getMessageStoreConfig().isCleanFileForciblyEnable());

@@ -266,8 +266,9 @@ public class BrokerController {
                         this.brokerConfig);
                 //如果启用了多副本(主从复制)
                 if (messageStoreConfig.isEnableDLegerCommitLog()) {
-                    //增加节点状态变更事件监听器
+                    //增加节点状态变更事件监听器,DLedgerRoleChangeHandler 是实现主从切换的另外一个关键点。
                     DLedgerRoleChangeHandler roleChangeHandler = new DLedgerRoleChangeHandler(this, (DefaultMessageStore) messageStore);
+                    //LedgerLeaderElector 的 addRoleChanneHandler 方法增加 节点角色变更事件监听器，
                     ((DLedgerCommitLog)((DefaultMessageStore) messageStore).getCommitLog()).getdLedgerServer().getdLedgerLeaderElector().addRoleChangeHandler(roleChangeHandler);
                 }
                 this.brokerStats = new BrokerStats((DefaultMessageStore) this.messageStore);

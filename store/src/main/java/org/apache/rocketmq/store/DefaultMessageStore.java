@@ -160,9 +160,11 @@ public class DefaultMessageStore implements MessageStore {
         this.messageStoreConfig = messageStoreConfig;
         this.brokerStatsManager = brokerStatsManager;
         this.allocateMappedFileService = new AllocateMappedFileService(this);
+        // 是否启用高可用DLedger存储(主从复制,自动选主等功能)
         if (messageStoreConfig.isEnableDLegerCommitLog()) {
             this.commitLog = new DLedgerCommitLog(this);
         } else {
+            //默认是普通的CommitLog
             this.commitLog = new CommitLog(this);
         }
         this.consumeQueueTable = new ConcurrentHashMap<>(32);
