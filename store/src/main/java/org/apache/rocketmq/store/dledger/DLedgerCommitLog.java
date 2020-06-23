@@ -52,9 +52,10 @@ import org.apache.rocketmq.store.StoreStatsService;
 import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 
 /**
- * Store all metadata downtime for recovery, data protection reliability
- * DLedgerCommitlog 继承自 Commitlog。
- * 主要是增加了主人复制多副本的一些特性。
+ *1、 Store all metadata downtime for recovery, data protection reliability
+ *2、 DLedgerCommitlog 继承自 Commitlog。
+ *3、 主要是增加了主人复制多副本的一些特性。
+ *4、 DLedger 要整合 commitlog 文件，是不是可以把 rocketmq 消息，即一个个 commitlog 条目整体当成 DLedger 的 body 字段即可
  */
 public class DLedgerCommitLog extends CommitLog {
     /**
@@ -91,6 +92,7 @@ public class DLedgerCommitLog extends CommitLog {
     public DLedgerCommitLog(final DefaultMessageStore defaultMessageStore) {
         //调用父类 即 CommitLog 的构造函数，加载 ${ROCKETMQ_HOME}/store/ comitlog 下的 commitlog 文件，以便兼容升级 DLedger 的消息
         super(defaultMessageStore);
+        //  DLedger相关配置
         dLedgerConfig = new DLedgerConfig();
         dLedgerConfig.setEnableDiskForceClean(defaultMessageStore.getMessageStoreConfig().isCleanFileForciblyEnable());
         dLedgerConfig.setStoreType(DLedgerConfig.FILE);
