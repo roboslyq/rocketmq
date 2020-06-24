@@ -121,6 +121,10 @@ public class CommitLog {
 
     }
 
+    /**
+     * 启动时从磁盘中加载文件
+     * @return
+     */
     public boolean load() {
         boolean result = this.mappedFileQueue.load();
         log.info("load commit log " + (result ? "OK" : "Failed"));

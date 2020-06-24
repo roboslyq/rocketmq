@@ -173,6 +173,10 @@ public class MappedFileQueue {
         }
     }
 
+    /**
+     * 启动时从磁盘中加载消息文件
+     * @return
+     */
     public boolean load() {
         File dir = new File(this.storePath);
         File[] files = dir.listFiles();

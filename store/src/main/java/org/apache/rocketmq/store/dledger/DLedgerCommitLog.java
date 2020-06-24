@@ -106,13 +106,16 @@ public class DLedgerCommitLog extends CommitLog {
         id = Integer.valueOf(dLedgerConfig.getSelfId().substring(1)) + 1;
         dLedgerServer = new DLedgerServer(dLedgerConfig);
         dLedgerFileStore = (DLedgerMmapFileStore) dLedgerServer.getdLedgerStore();
+        //创建DlegerFileStore钩子函数
         DLedgerMmapFileStore.AppendHook appendHook = (entry, buffer, bodyOffset) -> {
             assert bodyOffset == DLedgerEntry.BODY_OFFSET;
             buffer.position(buffer.position() + bodyOffset + MessageDecoder.PHY_POS_POSITION);
             buffer.putLong(entry.getPos() + bodyOffset);
         };
+        // 注入钩子函数
         dLedgerFileStore.addAppendHook(appendHook);
         dLedgerFileList = dLedgerFileStore.getDataFileList();
+        // 获取序列化器
         this.messageSerializer = new MessageSerializer(defaultMessageStore.getMessageStoreConfig().getMaxMessageSize());
 
     }
@@ -122,6 +125,9 @@ public class DLedgerCommitLog extends CommitLog {
         return super.load();
     }
 
+    /**
+     * 更新配置文件
+     */
     private void refreshConfig() {
         dLedgerConfig.setEnableDiskForceClean(defaultMessageStore.getMessageStoreConfig().isCleanFileForciblyEnable());
         dLedgerConfig.setDeleteWhen(defaultMessageStore.getMessageStoreConfig().getDeleteWhen());
@@ -188,6 +194,14 @@ public class DLedgerCommitLog extends CommitLog {
         return dLedgerFileList.remainHowManyDataToFlush();
     }
 
+    /**
+     * 清理过期文件
+     * @param expiredTime
+     * @param deleteFilesInterval
+     * @param intervalForcibly
+     * @param cleanImmediately
+     * @return
+     */
     @Override
     public int deleteExpiredFile(
         final long expiredTime,
@@ -219,6 +233,11 @@ public class DLedgerCommitLog extends CommitLog {
         return 1;
     }
 
+    /**
+     *
+     * @param sbr SelectMmapBufferResult
+     * @return
+     */
     public SelectMappedBufferResult convertSbr(SelectMmapBufferResult sbr) {
         if (sbr == null) {
             return null;
