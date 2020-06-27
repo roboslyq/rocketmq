@@ -52,10 +52,16 @@ import org.apache.rocketmq.store.StoreStatsService;
 import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 
 /**
- *1、 Store all metadata downtime for recovery, data protection reliability
- *2、 DLedgerCommitlog 继承自 Commitlog。
- *3、 主要是增加了主人复制多副本的一些特性。
- *4、 DLedger 要整合 commitlog 文件，是不是可以把 rocketmq 消息，即一个个 commitlog 条目整体当成 DLedger 的 body 字段即可
+ *  1、 Store all metadata downtime for recovery, data protection reliability
+ *      官方注释：保存了所有的无数据，在downtime时可以实现自我恢复，数据处于高可用状态。(Raft协议 + commitLog)
+ *  2、 DLedgerCommitlog 继承自 Commitlog。
+ *  3、 主要是增加了自动选主，主从复制多副本的一些特性（Reliability）。
+ *  4、 DLedger 要整合 commitlog 文件，是不是可以把 rocketmq 消息，即一个个 commitlog 条目整体当成 DLedger 的 body 字段即可
+ * 总结：
+ *   1、DLedger 在整合时，使用 DLedger 条目包裹 RocketMQ 中的 commitlog 条目，即在 DLedger 条目的 body 字段来存储整条 commitlog 条目。
+ *   2、引入 dividedCommitlogOffset 变量，表示物理偏移量小于该值的消息存在于旧的 commitlog 文件中，实现 升级 DLedger 集群后能访问到旧的数据。
+ *   3、新 DLedger 集群启动后，会将最后一个 commitlog 填充，即新的数据不会再写入到 原先的 commitlog 文件。
+ *   4、消息追加到 DLedger 数据日志文件中，返回的偏移量不是 DLedger 条目的起始偏移量，而是DLedger 条目中 body 字段的起始偏移量，即真实消息的起始偏移量，保证消息物理偏移量的语义与 RocketMQ Commitlog一样。
  */
 public class DLedgerCommitLog extends CommitLog {
     /**
@@ -74,21 +80,25 @@ public class DLedgerCommitLog extends CommitLog {
      * DLedger 所管理的存储文件集合，对比 RocketMQ 中的 MappedFileQueue。
      */
     private final MmapFileList dLedgerFileList;
-
     //The id identifies the broker role, 0 means master, others means slave
     // 节点ID，0 表示主节点，非0表示从节点
     private final int id;
     // 消息序列器
     private final MessageSerializer messageSerializer;
-    // 用于记录 \消息追加的时耗(日志追加所持有锁时间)。
+    // 用于记录\消息追加的时耗(日志追加所持有锁时间)。
     private volatile long beginTimeInDledgerLock = 0;
-
-    //This offset separate the old commitlog from dledger commitlog
-    // 记录的旧 commitlog 文件中的最大偏移量，如果访问的偏移量大于它，则访问 dledger 管理的文件。
+    //  This offset separate the old commitlog from dledger commitlog
+    //  翻译：旧的commitlog文件与新的dledger commitlog的offset分割符。
+    //  表示物理偏移量小于该值的消息存在于旧的 commitlog 文件中，实现升级 DLedger 集群后能访问到旧的数据
+    //  即为了兼容旧版的CommitLog文件，将小于dividedCommitlogOffset文件在CommitLog文件中查找（旧的），
+    //  最新的offset 大于dividedCommitlogOffset则保存在对应的DLedgerCommmitLog中。
     private long dividedCommitlogOffset = -1;
     // 是否正在恢复旧的 commitlog 文件。
     private boolean isInrecoveringOldCommitlog = false;
-
+    /**
+     * 在DefaultMessageStore类的构造函数完成对象创建，并且将DefaultMessageStore通过this传入到DLedgerCommitLog构造函数
+     * @param defaultMessageStore
+     */
     public DLedgerCommitLog(final DefaultMessageStore defaultMessageStore) {
         //调用父类 即 CommitLog 的构造函数，加载 ${ROCKETMQ_HOME}/store/ comitlog 下的 commitlog 文件，以便兼容升级 DLedger 的消息
         super(defaultMessageStore);
@@ -104,9 +114,12 @@ public class DLedgerCommitLog extends CommitLog {
         dLedgerConfig.setDeleteWhen(defaultMessageStore.getMessageStoreConfig().getDeleteWhen());
         dLedgerConfig.setFileReservedHours(defaultMessageStore.getMessageStoreConfig().getFileReservedTime() + 1);
         id = Integer.valueOf(dLedgerConfig.getSelfId().substring(1)) + 1;
+        /**
+         * 根据 DLedger 配置信息创建 DLedgerServer，即创建 DLedger 集群节点，集群内各个节点启动后，就会触发选主。
+         */
         dLedgerServer = new DLedgerServer(dLedgerConfig);
         dLedgerFileStore = (DLedgerMmapFileStore) dLedgerServer.getdLedgerStore();
-        //创建DlegerFileStore钩子函数
+        //创建DlegerFileStore钩子函数: 兼容 Commitlog 文件的关键所在
         DLedgerMmapFileStore.AppendHook appendHook = (entry, buffer, bodyOffset) -> {
             assert bodyOffset == DLedgerEntry.BODY_OFFSET;
             buffer.position(buffer.position() + bodyOffset + MessageDecoder.PHY_POS_POSITION);
@@ -120,6 +133,10 @@ public class DLedgerCommitLog extends CommitLog {
 
     }
 
+    /**
+     * 启动时加载（调用父类）
+     * @return
+     */
     @Override
     public boolean load() {
         return super.load();
@@ -134,6 +151,9 @@ public class DLedgerCommitLog extends CommitLog {
         dLedgerConfig.setFileReservedHours(defaultMessageStore.getMessageStoreConfig().getFileReservedTime() + 1);
     }
 
+    /**
+     * 如果存在旧的 commitlog 文件，则禁止删除 DLedger 文件，其具体做法就是禁止强制删除文件，并将文件的有效存储时间设置为 10 年
+     */
     private void disableDeleteDledger() {
         dLedgerConfig.setEnableDiskForceClean(false);
         dLedgerConfig.setFileReservedHours(24 * 365 * 10);
@@ -212,15 +232,21 @@ public class DLedgerCommitLog extends CommitLog {
         if (mappedFileQueue.getMappedFiles().isEmpty()) {
             refreshConfig();
             //To prevent too much log in defaultMessageStore
+            // 因为此方法是在DefautlMessageStore中被调用的，当返回值小于0时，表示失败，
+            // 失败之后会打印日志  log.warn("disk space will be full soon, but delete file failed.");
+            // 所以当数据量为0时，返回最大Integer，防止打印太多日志
             return Integer.MAX_VALUE;
         } else {
+            // 如果存在CommitLog文件，则禁止删除Dledger相关文件(保证offset的连续性)
             disableDeleteDledger();
         }
+        // 调用父类方法，删除CommitLog文件
         int count = super.deleteExpiredFile(expiredTime, deleteFilesInterval, intervalForcibly, cleanImmediately);
         if (count > 0 || mappedFileQueue.getMappedFiles().size() != 1) {
             return count;
         }
         //the old logic will keep the last file, here to delete it
+        // 旧的逻辑不会删除最后一个文件（即使已经过时），我们这里优化把它删除掉
         MappedFile mappedFile = mappedFileQueue.getLastMappedFile();
         log.info("Try to delete the last old commitlog file {}", mappedFile.getFileName());
         long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
@@ -260,8 +286,14 @@ public class DLedgerCommitLog extends CommitLog {
         }
     }
 
+    /**
+     * 通过偏移量来获取对应的数据
+     * @param offset
+     * @return
+     */
     @Override
     public SelectMappedBufferResult getData(final long offset) {
+        // 表示数据在旧的CommitLog文件中，还没保存到新的DLedgerCommitLog文件中，兼容CommitLog平滑升级迁移
         if (offset < dividedCommitlogOffset) {
             return super.getData(offset);
         }
@@ -287,17 +319,30 @@ public class DLedgerCommitLog extends CommitLog {
         return null;
     }
 
+    /**
+     * 具体的 recover 方法实现
+     * @param maxPhyOffsetOfConsumeQueue
+     */
     private void recover(long maxPhyOffsetOfConsumeQueue) {
+        // 加载 DLedger 相关的存储文件，并一一构建对应的 MmapFile，
+        // 其初始化三个重要的指针 wrotePosition、flushedPosition、committedPosition 三个指针为文件的大小。
         dLedgerFileStore.load();
         if (dLedgerFileList.getMappedFiles().size() > 0) {
+            // 如果存在mappedFile，恢复管辖的 MMapFile
             dLedgerFileStore.recover();
+            // 设置 dividedCommitlogOffset 的值为 DLedger 中所有物理文件的最小偏移量。
+            // 操作消息的物理偏移量小于该值，则从 commitlog 文件中查找。
+            // 物理偏移量大于等于该值的话则从 DLedger 相关的文件中查找消息。
             dividedCommitlogOffset = dLedgerFileList.getFirstMappedFile().getFileFromOffset();
+
             MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
             if (mappedFile != null) {
+                // 如果存在旧的文件，则禁止删除DLedger 文件
                 disableDeleteDledger();
             }
             long maxPhyOffset = dLedgerFileList.getMaxWrotePosition();
             // Clear ConsumeQueue redundant data
+            // 如果 consumequeue 中存储的最大物理偏移量大于 DLedger 中最大的物理偏移量，则删除多余的 consumequeue 文件
             if (maxPhyOffsetOfConsumeQueue >= maxPhyOffset) {
                 log.warn("[TruncateCQ]maxPhyOffsetOfConsumeQueue({}) >= processOffset({}), truncate dirty logic files", maxPhyOffsetOfConsumeQueue, maxPhyOffset);
                 this.defaultMessageStore.truncateDirtyLogicFiles(maxPhyOffset);
@@ -305,12 +350,22 @@ public class DLedgerCommitLog extends CommitLog {
             return;
         }
         //Indicate that, it is the first time to load mixed commitlog, need to recover the old commitlog
+        // 如果启用了 DLedger 并且是初次启动(还未生成 DLedger 相关的日志文件)，则需要恢复 旧的 commitlog 文件。
         isInrecoveringOldCommitlog = true;
         //No need the abnormal recover
         super.recoverNormally(maxPhyOffsetOfConsumeQueue);
         isInrecoveringOldCommitlog = false;
+
+//     文件恢复整体过程如下：
+/*      1、尝试查找最后一个 commitlog 文件，如果未找到，则结束。
+        2、从最后一个文件的最后写入点(原 commitlog 文件的 待写入位点)尝试去查找写入的魔数，如果存在魔数并等于 CommitLog.BLANK_MAGIC_CODE，则无需再写入魔数，在升级 DLedger 第一次启动时，魔数为空，故需要写入魔数。
+        3、初始化 dividedCommitlogOffset ，等于最后一个文件的起始偏移量加上文件的大小，即该指针指向最后一个文件的结束位置。
+        4、将最后一个 commitlog 未写满的数据全部写入，其方法为 设置消息体的 size 与 魔数即可。
+        5、设置最后一个文件的 wrotePosition、flushedPosition、committedPosition 为文件的大小，同样有意味者最后一个文件已经写满，下一条消息将写入 DLedger 中。
+ */
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
         if (mappedFile == null) {
+            // 尝试查找最后一个 commitlog 文件，如果未找到，则结束。
             return;
         }
         ByteBuffer byteBuffer = mappedFile.sliceByteBuffer();
@@ -340,6 +395,10 @@ public class DLedgerCommitLog extends CommitLog {
         log.info("Will set the initial commitlog offset={} for dledger", dividedCommitlogOffset);
     }
 
+    /**
+     * 在 Broker 启动时会加载 commitlog、consumequeue等文件，需要恢复其相关是数据结构，特别是与写入、刷盘、提交等指针，其具体调用 recover 方法
+     * @param maxPhyOffsetOfConsumeQueue
+     */
     @Override
     public void recoverNormally(long maxPhyOffsetOfConsumeQueue) {
         recover(maxPhyOffsetOfConsumeQueue);
@@ -399,29 +458,37 @@ public class DLedgerCommitLog extends CommitLog {
         return beginTimeInDledgerLock;
     }
 
+    /**
+     * 存储消息的核心方法
+     * @param msg
+     * @return
+     */
     @Override
     public PutMessageResult putMessage(final MessageExtBrokerInner msg) {
-        // Set the storage time
+        // Set the storage time 设置存储时间戳
         msg.setStoreTimestamp(System.currentTimeMillis());
-        // Set the message body BODY CRC (consider the most appropriate setting
-        // on the client)
+        // Set the message body BODY CRC (consider the most appropriate setting  on the client)
+        // 设置消息体的CRC校验
         msg.setBodyCRC(UtilAll.crc32(msg.getBody()));
-
+        // 获取具体的存储服务实现
         StoreStatsService storeStatsService = this.defaultMessageStore.getStoreStatsService();
-
+        // 获取对应的消息主题
         String topic = msg.getTopic();
+        // 获取对应的QueueId
         int queueId = msg.getQueueId();
 
         //should be consistent with the old version
+        // 和旧版本保持一致(即与CommitLog中的PutMessage代码保持一致)
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
+        // 非事务消息或者事务消息COMMIT
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
             || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
-            // Delay Delivery
+            // Delay Delivery(延迟发送)
             if (msg.getDelayTimeLevel() > 0) {
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
-
+                // 将延迟消息存入主题SCHEDULE_TOPIC_XXXX中
                 topic = ScheduleMessageService.SCHEDULE_TOPIC;
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
 
@@ -435,17 +502,19 @@ public class DLedgerCommitLog extends CommitLog {
             }
         }
 
-        // Back to Results
+        // Back to Results: 定义dledger存储结果
         AppendMessageResult appendResult;
         AppendFuture<AppendEntryResponse> dledgerFuture;
         EncodeResult encodeResult;
-
+        // 获取写锁（通过自旋方式，防止并发写，实现顺序读写）
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         long elapsedTimeInLock;
         long queueOffset;
         try {
             beginTimeInDledgerLock = this.defaultMessageStore.getSystemClock().now();
+            // 序列化消息（因为DLedger与RocketMQ整合原理就是将RokcetMQ整个消息保存在body字节码中，因此需要序列化）
             encodeResult = this.messageSerializer.serialize(msg);
+            // 获取queue偏移量
             queueOffset = topicQueueTable.get(encodeResult.queueOffsetKey);
             if (encodeResult.status != AppendMessageStatus.PUT_OK) {
                 return new PutMessageResult(PutMessageStatus.MESSAGE_ILLEGAL, new AppendMessageResult(encodeResult.status));
@@ -454,6 +523,10 @@ public class DLedgerCommitLog extends CommitLog {
             request.setGroup(dLedgerConfig.getGroup());
             request.setRemoteId(dLedgerServer.getMemberState().getSelfId());
             request.setBody(encodeResult.data);
+            // ====>dLedger追加消息:
+            // 该方法会有集群内的 Leader 节点负责消息追加以及在消息复制，只有超过集群内的半数节点成功写入消息后，
+            // 才会返回写入成功。如果追加成功，将会返回本次追加成功后的起始偏移量，
+            // 即 pos 属性，即类似于 rocketmq 中 commitlog 的偏移量，即物理偏移量。
             dledgerFuture = (AppendFuture<AppendEntryResponse>) dLedgerServer.handleAppend(request);
             if (dledgerFuture.getPos() == -1) {
                 return new PutMessageResult(PutMessageStatus.OS_PAGECACHE_BUSY, new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR));
@@ -473,6 +546,7 @@ public class DLedgerCommitLog extends CommitLog {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
                     // The next update ConsumeQueue information
+                    // 更新topicQueueTable,因为ConsumeQueue将需要使用
                     DLedgerCommitLog.this.topicQueueTable.put(encodeResult.queueOffsetKey, queueOffset + 1);
                     break;
                 default:
@@ -492,6 +566,7 @@ public class DLedgerCommitLog extends CommitLog {
 
         PutMessageStatus putMessageStatus = PutMessageStatus.UNKNOWN_ERROR;
         try {
+            // 获取消息追加结果
             AppendEntryResponse appendEntryResponse = dledgerFuture.get(3, TimeUnit.SECONDS);
             switch (DLedgerResponseCode.valueOf(appendEntryResponse.getCode())) {
                 case SUCCESS:
@@ -514,7 +589,7 @@ public class DLedgerCommitLog extends CommitLog {
         } catch (Throwable t) {
             log.error("Failed to get dledger append result", t);
         }
-
+        // 获取消息追加结果
         PutMessageResult putMessageResult = new PutMessageResult(putMessageStatus, appendResult);
         if (putMessageStatus == PutMessageStatus.PUT_OK) {
             // Statistics

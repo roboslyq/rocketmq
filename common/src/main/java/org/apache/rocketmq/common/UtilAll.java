@@ -224,6 +224,11 @@ public class UtilAll {
         return -1;
     }
 
+    /**
+     * 循环冗余校验（Cyclic Redundancy Check， CRC）
+     * @param array
+     * @return
+     */
     public static int crc32(byte[] array) {
         if (array != null) {
             return crc32(array, 0, array.length);

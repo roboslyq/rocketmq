@@ -1399,6 +1399,10 @@ public class DefaultMessageStore implements MessageStore {
         log.info(fileName + (result ? " create OK" : " already exists"));
     }
 
+    /**
+     *
+     * 添加定时任务
+     */
     private void addScheduleTask() {
 
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
@@ -1444,6 +1448,9 @@ public class DefaultMessageStore implements MessageStore {
         // }, 1, 1, TimeUnit.HOURS);
     }
 
+    /**
+     * 清理过期的CommitFile和ConsumerQueue
+     */
     private void cleanFilesPeriodically() {
         this.cleanCommitLogService.run();
         this.cleanConsumeQueueService.run();
@@ -1694,6 +1701,9 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 清理过期的文件
+     */
     class CleanCommitLogService {
 
         private final static int MAX_MANUAL_DELETE_FILE_TIMES = 20;
@@ -1713,6 +1723,9 @@ public class DefaultMessageStore implements MessageStore {
             DefaultMessageStore.log.info("executeDeleteFilesManually was invoked");
         }
 
+        /**
+         * 定时任务，清理过期的文件
+         */
         public void run() {
             try {
                 this.deleteExpiredFiles();
@@ -1723,6 +1736,9 @@ public class DefaultMessageStore implements MessageStore {
             }
         }
 
+        /**
+         * 删除过期的文件
+         */
         private void deleteExpiredFiles() {
             int deleteCount = 0;
             long fileReservedTime = DefaultMessageStore.this.getMessageStoreConfig().getFileReservedTime();
